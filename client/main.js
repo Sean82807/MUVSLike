@@ -18,6 +18,8 @@ const S = {
   spectate: 0, lastPick: 0, ping: 0, feed: [], choiceKey: '',
 };
 
+if (new URLSearchParams(location.search).has('debug')) window.muvs = S; // 테스트/디버그용
+
 // ───────────────────────── 네트워크 ─────────────────────────
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -238,6 +240,13 @@ resize();
 const chat = $('chatInput');
 function moveVec() {
   if (document.activeElement === chat) return [0, 0];
+  if (joy.id !== null) {
+    // 가상 조이스틱: 작은 데드존 + 바깥쪽 절반부터 최고 속도
+    const l = Math.hypot(joy.x, joy.y);
+    if (l < JOY_DEAD) return [0, 0];
+    const mag = Math.min(1, (l - JOY_DEAD) / 0.5);
+    return [joy.x / l * mag, joy.y / l * mag];
+  }
   const k = S.keys;
   let x = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0);
   let y = (k.has('s') || k.has('arrowdown') ? 1 : 0) - (k.has('w') || k.has('arrowup') ? 1 : 0);
@@ -251,9 +260,9 @@ function aimWorld() {
 }
 const playing = () => S.inGame && S.me && !S.me.dead && !S.me.bot;
 
-function useSkill() {
+function useSkill(aim) {
   if (!playing()) return;
-  const [ax, ay] = aimWorld();
+  const [ax, ay] = aim || aimWorld();
   send({ t: 'skill', ax: Math.round(ax), ay: Math.round(ay) });
 }
 function pick(i) {
@@ -291,6 +300,88 @@ addEventListener('blur', () => S.keys.clear());
 addEventListener('mousemove', e => { S.mouse.x = e.clientX; S.mouse.y = e.clientY; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('mousedown', e => { if (e.button === 2) useSkill(); });
+
+// ───────────────────────── 터치 (모바일) ─────────────────────────
+// 화면 아무 곳이나 누르면 그 자리에 조이스틱이 생기고, 손가락을 따라 끌려온다.
+const JOY_R = 60;       // 조이스틱 반경 (CSS px)
+const JOY_DEAD = 0.15;
+const joy = { id: null, bx: 0, by: 0, x: 0, y: 0 };
+const joyEl = $('joy'), knobEl = $('joyKnob');
+
+function enableTouchUi() {
+  if (!document.body.classList.contains('touch')) document.body.classList.add('touch');
+}
+if (matchMedia('(pointer: coarse)').matches) enableTouchUi();
+
+function drawJoy() {
+  joyEl.classList.toggle('hidden', joy.id === null);
+  if (joy.id === null) return;
+  joyEl.style.left = joy.bx + 'px';
+  joyEl.style.top = joy.by + 'px';
+  knobEl.style.transform = `translate(${joy.x * JOY_R}px, ${joy.y * JOY_R}px)`;
+}
+function moveJoy(e) {
+  let dx = e.clientX - joy.bx, dy = e.clientY - joy.by;
+  const l = Math.hypot(dx, dy);
+  if (l > JOY_R) {
+    joy.bx = e.clientX - dx / l * JOY_R;
+    joy.by = e.clientY - dy / l * JOY_R;
+    dx = dx / l * JOY_R; dy = dy / l * JOY_R;
+  }
+  joy.x = dx / JOY_R; joy.y = dy / JOY_R;
+  drawJoy();
+}
+function endJoy(e) {
+  if (e.pointerId !== joy.id) return;
+  joy.id = null; joy.x = joy.y = 0;
+  drawJoy();
+}
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') return;
+  enableTouchUi();
+  if (joy.id !== null || !S.inGame) return;
+  e.preventDefault();
+  joy.id = e.pointerId; joy.bx = e.clientX; joy.by = e.clientY; joy.x = joy.y = 0;
+  try { canvas.setPointerCapture(e.pointerId); } catch {}
+  $('joyHint').classList.add('hidden');
+  drawJoy();
+});
+canvas.addEventListener('pointermove', e => { if (e.pointerId === joy.id) moveJoy(e); });
+canvas.addEventListener('pointerup', endJoy);
+canvas.addEventListener('pointercancel', endJoy);
+canvas.addEventListener('lostpointercapture', endJoy);
+
+// 터치 스킬 조준: 돌진형 스킬은 이동 방향 우선, 나머지는 가장 가까운 적 우선
+function touchAim() {
+  const L = S.latest;
+  const mp = L && L.P.get(S.you);
+  if (!mp) return null;
+  const px = S.pred.valid ? S.pred.x : mp.x, py = S.pred.valid ? S.pred.y : mp.y;
+  let best = null, bd = 620 * 620;
+  const consider = (x, y) => { const d = (x - px) ** 2 + (y - py) ** 2; if (d < bd) { bd = d; best = [x, y]; } };
+  for (const m of L.M.values()) consider(m.x, m.y);
+  for (const o of L.O) if (o.alive) consider(o.x, o.y);
+  if (L.B.hp > 0 && L.B.seal <= 0) consider(L.B.x, L.B.y);
+  if (L.raw.pvp) for (const p of L.P.values()) if (p.id !== S.you && !p.dead) consider(p.x, p.y);
+  const [mx, my] = moveVec();
+  const moving = mx || my;
+  const dir = moving ? [px + mx / Math.hypot(mx, my) * 320, py + my / Math.hypot(mx, my) * 320] : null;
+  const cls = (S.roster.get(S.you) || {}).cls;
+  const dash = cls === 'spellblade' || cls === 'assassin';
+  if (dash && dir) return dir;
+  if (best) return best;
+  if (dir) return dir;
+  const f = mp.face / 100;
+  return [px + Math.cos(f) * 300, py + Math.sin(f) * 300];
+}
+const tap = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); fn(); });
+tap('skillBtn', () => useSkill(touchAim()));
+tap('tmBtn', () => {
+  if (!S.me) return;
+  send({ t: 'tm', mode: TARGET_MODES[(TARGET_MODES.indexOf(S.me.tm) + 1) % TARGET_MODES.length] });
+});
+tap('chatBtn', () => { chat.classList.remove('hidden'); chat.focus(); });
+tap('specTouchBtn', () => cycleSpectate());
 
 function cycleSpectate() {
   if (!S.latest) return;
@@ -384,7 +475,8 @@ function frame() {
   const v = viewState(now);
   if (!v) return;
   const focus = v.p.find(p => p.id === v.view) || v.p.find(p => p.id === S.you);
-  S.cam.s = Math.max(W / 1750, H / 1150);
+  // 작은 화면에서도 캐릭터가 너무 작아지지 않도록 최소 배율 보장
+  S.cam.s = Math.max(W / 1750, H / 1150, 0.62 * dpr);
   if (focus) {
     // 맵 가장자리에서는 카메라를 맵 안쪽으로 고정
     const hw = W / 2 / S.cam.s, hh = H / 2 / S.cam.s;
@@ -395,7 +487,7 @@ function frame() {
     if (Math.hypot(tx - S.cam.x, ty - S.cam.y) > 600) { S.cam.x = tx; S.cam.y = ty; }
   }
   S.fx = S.fx.filter(e => now - e.at < e.dur);
-  drawWorld(ctx, W, H, v, S.cam, S.fx, now, S.you);
+  drawWorld(ctx, W, H, v, S.cam, S.fx, now, S.you, dpr);
   if (now - lastMini > 0.2) { lastMini = now; drawMinimap(mctx, v, v.view, S.cam, W / S.cam.s, H / S.cam.s); }
   if (now - lastHud > 0.1) { lastHud = now; updateHud(v); }
 }
@@ -458,6 +550,12 @@ function updateHud(v) {
     $('skillCd').textContent = me.sk > 0 ? `${me.sk.toFixed(1)}s` : '준비';
     $('skillBox').classList.toggle('cd', me.sk > 0);
     $('skillBox').title = sk.desc;
+    $('skillBtnName').textContent = sk.name;
+    $('skillBtnCd').textContent = me.sk > 0 ? `${Math.ceil(me.sk)}s` : '';
+    $('skillBtn').classList.toggle('cd', me.sk > 0);
+    $('skillBtn').classList.toggle('hidden', me.dead || me.bot);
+    $('tmBtn').textContent = TARGET_LABEL[me.tm];
+    $('tmBtn').classList.remove('hidden');
     $('targetMode').textContent = TARGET_LABEL[me.tm] + ' [Q]';
     const lo = [];
     for (const [id, lv] of me.w) lo.push(`<span class="it w" title="${esc(WEAPONS[id].desc)}">${WEAPONS[id].name} ${lv}</span>`);
@@ -490,12 +588,16 @@ function updateHud(v) {
     if (me.dead) {
       dm.classList.remove('hidden');
       const respawn = S.lobby && S.lobby.settings.respawn;
-      dm.innerHTML = respawn ? `사망 — ${me.rt}초 후 부활<small>Tab: 다른 플레이어 관전</small>` : `사망 — 관전 중<small>Tab: 관전 대상 변경</small>`;
+      dm.innerHTML = respawn ? `사망 — ${me.rt}초 후 부활<small>${specHint()}</small>` : `사망 — 관전 중<small>${specHint()}</small>`;
     } else dm.classList.add('hidden');
+    $('specTouchBtn').classList.toggle('hidden', !me.dead);
   } else {
+    $('specTouchBtn').classList.remove('hidden');
+    $('skillBtn').classList.add('hidden');
+    $('tmBtn').classList.add('hidden');
     $('choices').classList.add('hidden');
     $('deathMsg').classList.remove('hidden');
-    $('deathMsg').innerHTML = '관전 중<small>Tab: 관전 대상 변경</small>';
+    $('deathMsg').innerHTML = `관전 중<small>${specHint()}</small>`;
   }
 
   // 상단
@@ -540,6 +642,11 @@ function updateHud(v) {
   } else to.classList.add('hidden');
 
   $('net').textContent = `ping ${S.ping}ms`;
+  if (!me || me.dead) $('joyHint').classList.add('hidden');
+}
+
+function specHint() {
+  return document.body.classList.contains('touch') ? '관전 ▶ 버튼: 관전 대상 변경' : 'Tab: 관전 대상 변경';
 }
 
 // ───────────────────────── 결과 ─────────────────────────

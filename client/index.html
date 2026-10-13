@@ -2,7 +2,9 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>MUVSLike — 4인 뱀서라이크</title>
   <link rel="stylesheet" href="/client/style.css">
 </head>
@@ -48,6 +50,7 @@
         <summary>조작법 / 규칙</summary>
         <ul>
           <li><b>이동</b> WASD / 방향키 · <b>공격</b> 자동 · <b>스킬</b> Space 또는 우클릭 (마우스 방향)</li>
+          <li><b>모바일</b> 화면을 누른 채 드래그하면 가상 조이스틱으로 이동 · 오른쪽 아래 버튼으로 스킬 (가장 가까운 적 자동 조준)</li>
           <li><b>레벨업/강화 선택</b> 1 · 2 · 3 키 또는 카드 클릭 — 게임은 멈추지 않습니다!</li>
           <li><b>Q</b> 공격 대상 우선순위 (자동 / 몬스터 / 플레이어) · <b>Enter</b> 채팅 · <b>Tab</b> 관전 대상 변경</li>
           <li>4명은 맵의 네 귀퉁이에서 시작합니다. 중앙의 <b>최종 보스</b>에게 막타를 친 플레이어가 승리합니다.</li>
@@ -91,6 +94,18 @@
     <div id="takeover" class="box hidden"></div>
     <input id="chatInput" class="hidden" maxlength="120" placeholder="채팅 (Enter 전송, Esc 취소)">
     <div id="net" class="muted small"></div>
+    <!-- 모바일 터치 조작 -->
+    <div id="touchUi">
+      <div id="joy" class="hidden"><div id="joyKnob"></div></div>
+      <div id="joyHint">화면을 누른 채 드래그해서 이동</div>
+      <button id="skillBtn"><span id="skillBtnName">스킬</span><span id="skillBtnCd"></span></button>
+      <div id="touchBtns">
+        <button id="tmBtn">타겟</button>
+        <button id="chatBtn">💬</button>
+        <button id="specTouchBtn" class="hidden">관전 ▶</button>
+      </div>
+      <div id="rotateHint">가로 모드로 돌리면 더 넓게 보입니다</div>
+    </div>
   </div>
 
   <!-- 결과 -->

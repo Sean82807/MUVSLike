@@ -21,9 +21,9 @@ const PROJ_STYLE = {
 const MOB_SHAPES = { zombie: 'circle', bat: 'bat', skeleton: 'square', archer: 'tri', brute: 'circle' };
 let TS = 1; // 줌과 무관하게 글자 크기를 유지하기 위한 배율
 
-export function drawWorld(ctx, W, H, v, cam, fx, now, myId) {
+export function drawWorld(ctx, W, H, v, cam, fx, now, myId, dpr = 1) {
   const s = cam.s;
-  TS = Math.min(2, 1 / s);
+  TS = Math.min(3, dpr / s); // 글자는 CSS 픽셀 기준 크기 유지
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#050608';
   ctx.fillRect(0, 0, W, H);

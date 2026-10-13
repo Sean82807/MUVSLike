@@ -69,7 +69,8 @@ h3 { margin: 14px 0 8px; font-size: 15px; color: var(--accent); }
 .cls-icon { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: #111; font-weight: 700; }
 .bar { position: relative; height: 16px; background: #222a3b; border-radius: 4px; overflow: hidden; margin: 3px 0; }
 .bar > div { position: absolute; inset: 0 auto 0 0; transition: width .15s; }
-.bar span { position: relative; font-size: 11px; padding-left: 6px; line-height: 16px; text-shadow: 0 1px 2px #000; }
+.bar span { position: relative; display: block; font-size: 11px; padding: 0 6px; line-height: 16px; text-shadow: 0 1px 2px #000;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar.hp > div { background: linear-gradient(#ef5350, #b71c1c); }
 .bar.xp { height: 10px; } .bar.xp span { line-height: 10px; font-size: 9px; }
 .bar.xp > div { background: linear-gradient(#64b5f6, #1565c0); }
@@ -126,4 +127,62 @@ h3 { margin: 14px 0 8px; font-size: 15px; color: var(--accent); }
   #me { width: 240px; }
   .card { width: 150px; }
   #top { min-width: 240px; top: auto; bottom: 230px; }
+}
+
+/* ───────── 모바일 터치 조작 ───────── */
+canvas#game, #hud { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#touchUi { display: none; }
+body.touch #touchUi { display: block; }
+body.touch #net, body.touch #me .row.small { display: none; }
+#joy { position: absolute; width: 130px; height: 130px; margin: -65px 0 0 -65px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07); border: 2px solid rgba(255, 255, 255, 0.28); }
+#joyKnob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.38); box-shadow: 0 0 12px #0008; }
+#joyHint { position: absolute; left: 50%; bottom: 34%; transform: translateX(-50%); color: #ffffffaa; font-size: 14px;
+  text-shadow: 0 1px 3px #000; white-space: nowrap; pointer-events: none; }
+#skillBtn { position: absolute; right: calc(24px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom));
+  width: 88px; height: 88px; border-radius: 50%; pointer-events: auto; touch-action: none;
+  background: rgba(40, 90, 60, 0.85); border: 3px solid #a5d6a7; color: #fff; font-weight: 700; font-size: 13px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; padding: 4px; }
+#skillBtn.cd { background: rgba(50, 50, 50, 0.85); border-color: #777; color: #aaa; }
+#skillBtn:active { transform: scale(0.94); }
+#touchBtns { position: absolute; right: calc(122px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+#touchBtns button { pointer-events: auto; touch-action: none; padding: 8px 12px; font-size: 13px; background: rgba(30, 38, 58, 0.85); }
+#rotateHint { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #000a;
+  padding: 6px 12px; border-radius: 8px; font-size: 13px; pointer-events: none; }
+@media (orientation: portrait) { body.touch #rotateHint { display: block; animation: fadeHint 4s forwards; } }
+@keyframes fadeHint { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+
+/* 작은 화면(휴대폰) HUD 압축 */
+@media (max-height: 520px), (max-width: 700px) {
+  #hud .box { padding: 5px 7px; }
+  #me { width: 200px; top: 6px; left: 6px; font-size: 12px; }
+  #me .row { margin-bottom: 2px; }
+  .bar { height: 13px; } .bar span { line-height: 13px; font-size: 10px; }
+  #statLine, #loadout { display: none; }
+  #top { top: 6px !important; bottom: auto !important; min-width: 200px; padding: 4px 8px !important; }
+  #clock { font-size: 14px; }
+  #top .tag { font-size: 10px; padding: 0 5px; margin-left: 3px; }
+  .bar.boss { height: 11px; margin-top: 3px; } .bar.boss span { line-height: 11px; font-size: 9px; }
+  #side { width: 170px; top: 6px; right: 6px; }
+  #score { font-size: 10px; }
+  #feed div { font-size: 10px; padding: 2px 6px; max-width: 170px; }
+  #feed div:nth-last-child(n+4) { display: none; }
+  #minimap { width: 110px; height: 110px; right: 6px; bottom: 6px; }
+  #choices { bottom: 6px; }
+  #choiceTitle { font-size: 12px; margin-bottom: 3px; }
+  .card { width: 128px; padding: 5px 7px; }
+  .card .t { font-size: 12px; } .card .d, .card .lv { font-size: 10px; }
+  #skillBtn { width: 74px; height: 74px; bottom: calc(126px + env(safe-area-inset-bottom)); right: calc(14px + env(safe-area-inset-right)); font-size: 11px; }
+  #touchBtns { right: calc(96px + env(safe-area-inset-right)); bottom: calc(126px + env(safe-area-inset-bottom)); }
+  #touchBtns button { padding: 6px 10px; font-size: 12px; }
+  #deathMsg { font-size: 18px; }
+  #chatInput { bottom: auto; top: 30%; width: 80vw; }
+  #takeover { bottom: 6px; left: 6px; }
+}
+@media (max-width: 700px) and (orientation: portrait) {
+  #side { top: auto; bottom: 122px; }
+  #score { display: none; }
+  #top { top: 96px !important; }
 }
