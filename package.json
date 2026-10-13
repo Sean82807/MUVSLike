@@ -1,0 +1,21 @@
+{
+  "name": "muvslike",
+  "version": "0.1.0",
+  "description": "4인 멀티플레이 뱀서라이크 (사람 + AI)",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "sim": "node test/sim.js",
+    "test": "node test/sim.js --quick"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sean82807/MUVSLike.git"
+  },
+  "license": "ISC",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}

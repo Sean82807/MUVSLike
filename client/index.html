@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MUVSLike — 4인 뱀서라이크</title>
+  <link rel="stylesheet" href="/client/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- 접속 화면 -->
+  <div id="join" class="screen">
+    <div class="panel narrow">
+      <h1>MUVSLike</h1>
+      <p class="sub">4인 멀티플레이 뱀서라이크 · 중앙의 보스를 처치하라</p>
+      <input id="nameInput" maxlength="12" placeholder="닉네임" autocomplete="off">
+      <button id="joinBtn" class="primary">입장</button>
+      <p id="joinErr" class="err"></p>
+    </div>
+  </div>
+
+  <!-- 로비 -->
+  <div id="lobby" class="screen hidden">
+    <div class="panel wide">
+      <h1>로비 <span id="lobbyState" class="tag"></span></h1>
+      <div class="lobby-grid">
+        <div>
+          <h3>플레이어 슬롯</h3>
+          <div id="slots"></div>
+          <div id="spectators" class="muted"></div>
+          <button id="specBtn" class="small">관전자로 전환</button>
+        </div>
+        <div>
+          <h3>클래스 선택</h3>
+          <div id="classes"></div>
+        </div>
+      </div>
+      <div id="hostPanel" class="hidden">
+        <h3>방 설정 (방장)</h3>
+        <label><input type="checkbox" id="setRespawn"> 사망 후 부활</label>
+        <label>PvP 금지 시간 <input type="number" id="setGrace" min="0" max="600" step="10"> 초</label>
+        <label>보스 봉인 해제 <input type="number" id="setUnseal" min="0" max="60" step="1"> 분</label>
+        <button id="startBtn" class="primary">게임 시작</button>
+      </div>
+      <p id="waitHost" class="muted hidden">방장이 게임을 시작하기를 기다리는 중…</p>
+      <details class="help">
+        <summary>조작법 / 규칙</summary>
+        <ul>
+          <li><b>이동</b> WASD / 방향키 · <b>공격</b> 자동 · <b>스킬</b> Space 또는 우클릭 (마우스 방향)</li>
+          <li><b>레벨업/강화 선택</b> 1 · 2 · 3 키 또는 카드 클릭 — 게임은 멈추지 않습니다!</li>
+          <li><b>Q</b> 공격 대상 우선순위 (자동 / 몬스터 / 플레이어) · <b>Enter</b> 채팅 · <b>Tab</b> 관전 대상 변경</li>
+          <li>4명은 맵의 네 귀퉁이에서 시작합니다. 중앙의 <b>최종 보스</b>에게 막타를 친 플레이어가 승리합니다.</li>
+          <li>맵 곳곳의 <b>오브젝트</b>(정예 몬스터)를 막타로 사냥하면 강화 아이템(유물)을 얻습니다.</li>
+          <li>다른 플레이어를 처치해도 강화 아이템을 얻습니다. 단, 누구든 <b>사망할 때마다 모든 몬스터의 공격력이 상승</b>합니다.</li>
+          <li>몬스터는 가끔 고기·자석·폭탄·보물상자를 떨어뜨립니다.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <!-- 인게임 HUD -->
+  <div id="hud" class="hidden">
+    <div id="me" class="box">
+      <div class="row"><span id="meIcon" class="cls-icon"></span><b id="meName"></b><span id="meLevel" class="tag"></span></div>
+      <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
+      <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
+      <div class="row small">
+        <span id="skillBox" class="skill"><span id="skillName"></span><span id="skillCd"></span></span>
+        <span id="targetMode" class="tag" title="Q로 변경"></span>
+      </div>
+      <div id="loadout" class="small"></div>
+      <div id="statLine" class="small muted"></div>
+    </div>
+    <div id="top" class="box center">
+      <span id="clock"></span>
+      <span id="pvpState" class="tag"></span>
+      <span id="mobMult" class="tag warn" title="플레이어가 사망할 때마다 상승"></span>
+      <div id="bossBar" class="bar boss"><div id="bossFill"></div><span id="bossText"></span></div>
+    </div>
+    <div id="side">
+      <table id="score" class="box"></table>
+      <div id="feed"></div>
+    </div>
+    <div id="choices" class="hidden">
+      <div id="choiceTitle"></div>
+      <div id="choiceCards"></div>
+    </div>
+    <div id="deathMsg" class="hidden"></div>
+    <canvas id="minimap" width="200" height="200"></canvas>
+    <div id="takeover" class="box hidden"></div>
+    <input id="chatInput" class="hidden" maxlength="120" placeholder="채팅 (Enter 전송, Esc 취소)">
+    <div id="net" class="muted small"></div>
+  </div>
+
+  <!-- 결과 -->
+  <div id="over" class="screen hidden">
+    <div class="panel wide">
+      <h1 id="overTitle"></h1>
+      <table id="results"></table>
+      <button id="lobbyBtn" class="primary hidden">로비로 돌아가기</button>
+      <p class="muted">30초 후 자동으로 로비로 돌아갑니다.</p>
+    </div>
+  </div>
+
+  <script type="module" src="/client/main.js"></script>
+</body>
+</html>
