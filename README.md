@@ -14,6 +14,49 @@ PORT=8080 npm start  # 포트 변경
 같은 네트워크의 친구는 `http://<서버 PC의 IP>:3000` 으로 접속합니다.
 처음 입장한 사람이 방장이 되며, 방장이 **게임 시작**을 누르면 빈 슬롯은 AI로 채워집니다.
 
+## 인터넷(웹)으로 공개하기
+
+게임 서버는 WebSocket을 쓰는 Node.js 프로그램이라 GitHub Pages 같은 정적 호스팅에는 올릴 수 없고, Node를 실행할 수 있는 곳이 필요합니다.
+
+### 방법 A. Render 무료 호스팅 (상시 주소, 추천)
+
+1. https://render.com 에 GitHub 계정으로 가입
+2. **New → Blueprint** → 이 저장소(`MUVSLike`)와 게임 코드가 있는 브랜치 선택 → **Apply**
+   (저장소의 `render.yaml` 설정이 자동으로 적용됩니다)
+3. 몇 분 뒤 `https://muvslike-xxxx.onrender.com` 같은 주소가 생기면 그 주소를 친구들에게 공유
+
+- 무료 플랜은 15분간 접속이 없으면 잠들고, 다음 접속 때 깨어나는 데 30~60초 걸립니다.
+- 브랜치에 push하면 자동으로 다시 배포됩니다.
+
+### 방법 B. 내 PC에서 서버를 켜고 임시 주소로 공개 (설치 1개, 가장 빠름)
+
+```bash
+npm start                                         # 터미널 1: 게임 서버
+cloudflared tunnel --url http://localhost:3000    # 터미널 2: 공개 주소 생성
+```
+
+`cloudflared` 설치: 윈도우 `winget install --id Cloudflare.cloudflared`, 맥 `brew install cloudflared`.
+실행하면 `https://xxxx.trycloudflare.com` 주소가 출력되고, 이 주소로 누구나 접속할 수 있습니다.
+PC를 끄거나 명령을 멈추면 주소도 사라지며, 다시 실행할 때마다 주소가 바뀝니다.
+
+### 방법 C. Docker (Fly.io, Railway, Cloud Run, 개인 서버 등)
+
+```bash
+docker build -t muvslike .
+docker run -p 3000:3000 muvslike
+```
+
+호스팅 서비스가 지정하는 `PORT` 환경 변수를 그대로 사용합니다.
+
+### 서버 환경 변수
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `PORT` | 3000 | 접속 포트 |
+| `MAX_CLIENTS` | 16 | 동시 접속 인원 제한 (플레이어 4명 + 관전자) |
+
+서버는 방 1개를 운영합니다. 상태 확인용 주소는 `/healthz` 입니다.
+
 ## 게임 규칙
 
 | 요소 | 내용 |

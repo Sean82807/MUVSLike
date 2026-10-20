@@ -9,11 +9,14 @@ import { TICK_RATE, SNAPSHOT_EVERY, CLASS_IDS, CLASSES, DEFAULT_SETTINGS } from 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +process.env.PORT || 3000;
+const MAX_CLIENTS = +process.env.MAX_CLIENTS || 16; // 공개 서버용 동시 접속 제한
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 
 // ───────────────────────── HTTP ─────────────────────────
 const server = http.createServer((req, res) => {
-  let url = decodeURIComponent((req.url || '/').split('?')[0]);
+  let url;
+  try { url = decodeURIComponent((req.url || '/').split('?')[0]); } catch { res.writeHead(400); res.end(); return; }
+  if (url === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
   if (url === '/') url = '/client/index.html';
   if (!url.startsWith('/client/') && !url.startsWith('/shared/')) { res.writeHead(404); res.end('not found'); return; }
   const file = path.normalize(path.join(ROOT, url));
@@ -204,8 +207,11 @@ function onMessage(c, msg) {
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
 wss.on('connection', ws => {
+  if (clients.size >= MAX_CLIENTS) { ws.close(1013, 'server full'); return; }
   const c = { id: nextCid++, ws, name: '', slot: -1, spectate: 0 };
   clients.set(c.id, c);
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   ws.on('message', data => {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
@@ -222,6 +228,15 @@ wss.on('connection', ws => {
     broadcastLobby();
   });
 });
+
+// 응답 없는(끊긴) 연결 정리 — 인터넷 환경에서 유령 접속이 슬롯을 차지하지 않도록
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!ws.isAlive) { ws.terminate(); continue; }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, 20000);
 
 // ───────────────────────── 게임 루프 ─────────────────────────
 let lastTime = performance.now(), tickAcc = 0, tickCount = 0;
@@ -264,7 +279,7 @@ function endGame() {
   overTimer = setTimeout(() => { if (state === 'over') backToLobby(); }, 30000);
 }
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`MUVSLike 서버 실행 중: http://localhost:${PORT}`);
   console.log('같은 네트워크의 친구는 http://<이 PC의 IP>:' + PORT + ' 로 접속하세요.');
 });

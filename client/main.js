@@ -30,8 +30,9 @@ function connect() {
     setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
   };
   ws.onmessage = e => onMessage(JSON.parse(e.data));
-  ws.onclose = () => {
-    $('joinErr').textContent = '서버와 연결이 끊어졌습니다. 새로고침 해주세요.';
+  ws.onclose = e => {
+    $('joinErr').textContent = e.code === 1013 ? '서버 인원이 가득 찼습니다. 잠시 후 다시 시도해주세요.'
+      : '서버와 연결이 끊어졌습니다. 새로고침 해주세요.';
     show('join');
   };
 }
