@@ -186,3 +186,23 @@ body.touch #net, body.touch #me .row.small { display: none; }
   #score { display: none; }
   #top { top: 96px !important; }
 }
+
+/* ───────── 방 목록 ───────── */
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rooms-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; }
+@media (max-width: 760px) { .rooms-grid { grid-template-columns: 1fr; } }
+.form { display: flex; flex-direction: column; gap: 8px; }
+.form.row { flex-direction: row; }
+.form.row input { flex: 1; text-transform: uppercase; letter-spacing: 3px; }
+#roomList { display: flex; flex-direction: column; gap: 6px; min-height: 60px; }
+.room-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #121725; }
+.room-item .info { flex: 1; min-width: 0; }
+.room-item .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-item .meta { font-size: 12px; color: var(--muted); }
+.room-empty { color: var(--muted); padding: 18px 0; text-align: center; }
+.room-code { margin: 4px 0 6px; color: var(--muted); }
+.room-code b { color: var(--accent); font-size: 18px; letter-spacing: 3px; margin: 0 4px; }
+.invite { color: var(--accent); margin: 0; }
+#overLeaveBtn { margin-left: 8px; }
+#gameLeaveBtn { position: absolute; left: 70px; bottom: 2px; pointer-events: auto; padding: 2px 8px; opacity: .75; }
+body.touch #gameLeaveBtn { left: 6px; bottom: auto; top: 84px; }

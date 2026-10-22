@@ -16,16 +16,52 @@
     <div class="panel narrow">
       <h1>MUVSLike</h1>
       <p class="sub">4인 멀티플레이 뱀서라이크 · 중앙의 보스를 처치하라</p>
+      <p id="inviteNote" class="invite hidden"></p>
       <input id="nameInput" maxlength="12" placeholder="닉네임" autocomplete="off">
       <button id="joinBtn" class="primary">입장</button>
       <p id="joinErr" class="err"></p>
     </div>
   </div>
 
+  <!-- 방 목록 -->
+  <div id="rooms" class="screen hidden">
+    <div class="panel wide">
+      <div class="head-row">
+        <h1>방 목록</h1>
+        <span class="muted" id="whoami"></span>
+      </div>
+      <div class="rooms-grid">
+        <div>
+          <div class="head-row"><h3>열린 방</h3><button id="refreshBtn" class="small">새로고침</button></div>
+          <div id="roomList"></div>
+        </div>
+        <div>
+          <h3>방 만들기</h3>
+          <div class="form">
+            <input id="roomName" maxlength="20" placeholder="방 이름 (비우면 자동)">
+            <label><input type="checkbox" id="roomPrivate"> 비공개 (코드/링크로만 입장)</label>
+            <button id="createBtn" class="primary">방 만들기</button>
+          </div>
+          <h3>코드로 입장</h3>
+          <div class="form row">
+            <input id="codeInput" maxlength="4" placeholder="방 코드 4자리" autocomplete="off">
+            <button id="codeBtn">입장</button>
+          </div>
+          <p id="roomsErr" class="err"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 로비 -->
   <div id="lobby" class="screen hidden">
     <div class="panel wide">
-      <h1>로비 <span id="lobbyState" class="tag"></span></h1>
+      <div class="head-row">
+        <h1><span id="roomTitle"></span> <span id="lobbyState" class="tag"></span></h1>
+        <button id="leaveBtn" class="small">방 나가기</button>
+      </div>
+      <div class="room-code">방 코드 <b id="roomCode"></b> <span id="roomPrivTag" class="tag hidden">비공개</span>
+        <button id="copyLinkBtn" class="small">초대 링크 복사</button> <span id="copyNote" class="muted small"></span></div>
       <div class="lobby-grid">
         <div>
           <h3>플레이어 슬롯</h3>
@@ -94,6 +130,7 @@
     <div id="takeover" class="box hidden"></div>
     <input id="chatInput" class="hidden" maxlength="120" placeholder="채팅 (Enter 전송, Esc 취소)">
     <div id="net" class="muted small"></div>
+    <button id="gameLeaveBtn" class="small" title="방 나가기">나가기</button>
     <!-- 모바일 터치 조작 -->
     <div id="touchUi">
       <div id="joy" class="hidden"><div id="joyKnob"></div></div>
@@ -114,6 +151,7 @@
       <h1 id="overTitle"></h1>
       <table id="results"></table>
       <button id="lobbyBtn" class="primary hidden">로비로 돌아가기</button>
+      <button id="overLeaveBtn">방 나가기</button>
       <p class="muted">30초 후 자동으로 로비로 돌아갑니다.</p>
     </div>
   </div>

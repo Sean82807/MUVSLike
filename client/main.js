@@ -26,13 +26,15 @@ function connect() {
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
   S.ws = ws;
   ws.onopen = () => {
-    send({ t: 'join', name: S.name });
+    send({ t: 'hello', name: S.name, room: inviteCode });
+    inviteCode = null;
     setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
   };
   ws.onmessage = e => onMessage(JSON.parse(e.data));
   ws.onclose = e => {
     $('joinErr').textContent = e.code === 1013 ? '서버 인원이 가득 찼습니다. 잠시 후 다시 시도해주세요.'
       : '서버와 연결이 끊어졌습니다. 새로고침 해주세요.';
+    S.lobby = null; S.inGame = false;
     show('join');
   };
 }
@@ -40,8 +42,11 @@ const send = m => { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(
 
 function onMessage(m) {
   switch (m.t) {
-    case 'welcome': S.cid = m.id; S.name = m.name; break;
-    case 'lobby': S.lobby = m; renderLobby(); break;
+    case 'welcome': S.cid = m.id; S.name = m.name; $('whoami').textContent = `${m.name} 님`; break;
+    case 'rooms': S.roomList = m; renderRooms(); if (!S.lobby) show('rooms'); break;
+    case 'left': S.lobby = null; S.inGame = false; setUrlRoom(null); show('rooms'); break;
+    case 'error': $('roomsErr').textContent = m.text; break;
+    case 'lobby': S.lobby = m; setUrlRoom(m.room.id); renderLobby(); break;
     case 'start':
       S.inGame = true; S.you = m.you; S.snaps = []; S.offset = null; S.fx = []; S.pred.valid = false; S.hist = [];
       S.feed = []; S.choiceKey = ''; S.me = null;
@@ -64,6 +69,7 @@ function setRoster(list) {
 // ───────────────────────── 화면 전환 ─────────────────────────
 function show(which) {
   $('join').classList.toggle('hidden', which !== 'join');
+  $('rooms').classList.toggle('hidden', which !== 'rooms');
   $('lobby').classList.toggle('hidden', which !== 'lobby');
   $('over').classList.toggle('hidden', which !== 'over');
   $('hud').classList.toggle('hidden', which !== 'game');
@@ -78,6 +84,68 @@ $('joinBtn').onclick = () => {
 $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('joinBtn').click(); });
 $('nameInput').focus();
 
+// 초대 링크 (?room=CODE)
+let inviteCode = new URLSearchParams(location.search).get('room');
+if (inviteCode) {
+  $('inviteNote').textContent = `초대받은 방: ${inviteCode.toUpperCase()} — 닉네임을 입력하면 바로 입장합니다`;
+  $('inviteNote').classList.remove('hidden');
+}
+function setUrlRoom(code) {
+  const url = new URL(location.href);
+  if (code) url.searchParams.set('room', code); else url.searchParams.delete('room');
+  if (url.href !== location.href) history.replaceState(null, '', url);
+}
+const inviteLink = code => `${location.origin}${location.pathname}?room=${code}`;
+
+// ───────────────────────── 방 목록 ─────────────────────────
+const STATE_LABEL = { lobby: '대기 중', playing: '게임 중', over: '게임 종료' };
+function renderRooms() {
+  const R = S.roomList;
+  if (!R) return;
+  const el = $('roomList');
+  el.innerHTML = '';
+  if (!R.rooms.length) el.innerHTML = '<div class="room-empty">열린 방이 없습니다. 새 방을 만들어보세요!</div>';
+  for (const r of R.rooms) {
+    const div = document.createElement('div');
+    div.className = 'room-item';
+    const status = r.state === 'playing' ? `게임 중 ${fmtTime(r.time)}` : STATE_LABEL[r.state];
+    div.innerHTML = `<div class="info"><div class="nm">${esc(r.name)}</div>
+      <div class="meta">${r.id} · 방장 ${esc(r.host)} · 플레이어 ${r.humans}/4${r.spectators ? ` · 관전 ${r.spectators}` : ''}</div></div>
+      <span class="tag ${r.state === 'lobby' ? 'good' : ''}">${status}</span>`;
+    const b = document.createElement('button');
+    b.className = r.state === 'lobby' && r.humans < 4 ? 'primary small' : 'small';
+    b.textContent = r.state === 'lobby' && r.humans < 4 ? '참여' : '관전';
+    b.onclick = () => { $('roomsErr').textContent = ''; send({ t: 'enter', id: r.id }); };
+    div.appendChild(b);
+    el.appendChild(div);
+  }
+  $('createBtn').disabled = R.full;
+  $('createBtn').textContent = R.full ? '방이 가득 찼습니다' : '방 만들기';
+}
+$('createBtn').onclick = () => {
+  $('roomsErr').textContent = '';
+  send({ t: 'create', name: $('roomName').value.trim(), private: $('roomPrivate').checked });
+};
+const enterByCode = () => {
+  const code = $('codeInput').value.trim().toUpperCase();
+  if (code.length < 4) { $('roomsErr').textContent = '4자리 방 코드를 입력하세요.'; return; }
+  $('roomsErr').textContent = '';
+  send({ t: 'enter', id: code });
+};
+$('codeBtn').onclick = enterByCode;
+$('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') enterByCode(); });
+$('refreshBtn').onclick = () => send({ t: 'list' });
+const leaveRoom = (ask) => { if (!ask || confirm('방에서 나가시겠습니까?')) send({ t: 'leave' }); };
+$('leaveBtn').onclick = () => leaveRoom(false);
+$('overLeaveBtn').onclick = () => leaveRoom(false);
+$('gameLeaveBtn').onclick = () => leaveRoom(true);
+$('copyLinkBtn').onclick = async () => {
+  const link = inviteLink(S.lobby.room.id);
+  try { await navigator.clipboard.writeText(link); $('copyNote').textContent = '복사됨!'; }
+  catch { prompt('이 링크를 친구에게 보내세요', link); }
+  setTimeout(() => { $('copyNote').textContent = ''; }, 2000);
+};
+
 // ───────────────────────── 로비 ─────────────────────────
 function renderLobby() {
   const L = S.lobby;
@@ -87,6 +155,9 @@ function renderLobby() {
   else if (!S.inGame && $('over').classList.contains('hidden')) show('lobby');
 
   $('lobbyState').textContent = { lobby: '대기 중', playing: '게임 진행 중', over: '게임 종료' }[L.state];
+  $('roomTitle').textContent = L.room.name;
+  $('roomCode').textContent = L.room.id;
+  $('roomPrivTag').classList.toggle('hidden', !L.room.private);
   const isHost = L.hostId === S.cid;
   const mySlot = L.slots.find(s => s.cid === S.cid);
 
