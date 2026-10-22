@@ -177,6 +177,7 @@ export class Game {
       cdMult: Math.max(0.35, (1 - 0.07 * lv('haste')) * Math.pow(0.82, n('berserker'))),
       area: 1 + 0.1 * lv('area') + 0.15 * n('prismOrb'),
       amount: lv('multi') + n('prismOrb'),
+      pierce: lv('pierce'),
       magnet: BASE_MAGNET * (1 + 0.35 * lv('magnet')),
       crit: c.crit + 0.06 * lv('precision') + 0.1 * n('luckyClover'),
       critMult: 2 + 0.5 * n('luckyClover'),
@@ -201,7 +202,7 @@ export class Game {
       dmg: d.dmg * (1 + 0.22 * (lv - 1)) * s.might,
       cd: (d.cd || 1) * (1 - 0.04 * (lv - 1)) * s.cdMult,
       count: (d.count || 1) + lvBonus + s.amount,
-      pierce: (d.pierce || 0) + (d.pierceLv ? Math.floor(lv / 3) : 0),
+      pierce: (d.pierce || 0) + (d.pierceLv ? Math.floor(lv / 3) : 0) + (d.kind === 'proj' || d.kind === 'homing' ? s.pierce : 0),
       range: (d.range || 0) * (d.kind === 'arc' ? areaMult : 1),
       radius: (d.radius || 0) * areaMult * (d.kind === 'aura' || d.kind === 'nova' ? (1 + 0.1 * s.amount) : 1),
       explode: (d.explode || 0) * areaMult,
@@ -475,7 +476,9 @@ export class Game {
     if (p.weapons.length < MAX_WEAPONS) {
       for (const g of GENERIC_WEAPONS) if (!p.weapons.some(w => w.id === g)) pool.push({ k: 'w', id: g, lv: 1, wt: 1.6 });
     }
+    const hasProj = p.weapons.some(w => WEAPONS[w.id].kind === 'proj' || WEAPONS[w.id].kind === 'homing');
     for (const id in PASSIVES) {
+      if (PASSIVES[id].needs === 'proj' && !hasProj) continue; // 투사체 무기가 없으면 관통은 제시하지 않음
       const cur = p.passives[id] || 0;
       if (cur < PASSIVES[id].max) pool.push({ k: 'p', id, lv: cur + 1, wt: cur > 0 ? 2.2 : 1.4 });
     }
@@ -801,7 +804,7 @@ export class Game {
       const a = base + (i - (ws.count - 1) / 2) * 0.5;
       this.projectiles.push({
         id: this.id(), team: 'p', owner: p, x: p.x, y: p.y, vx: Math.cos(a) * ws.d.speed, vy: Math.sin(a) * ws.d.speed,
-        r: ws.d.r, dmg: ws.dmg, pierce: 0, life: ws.d.life, hit: new Set(), kind: 'missile', homing: t, retarget: 0, wid: ws.id,
+        r: ws.d.r, dmg: ws.dmg, pierce: ws.pierce, life: ws.d.life, hit: new Set(), kind: 'missile', homing: t, retarget: 0, wid: ws.id,
       });
     }
     return true;
@@ -868,14 +871,19 @@ export class Game {
           pr.vx = Math.cos(na) * sp; pr.vy = Math.sin(na) * sp;
         }
       }
+      const x0 = pr.x, y0 = pr.y;
       pr.x += pr.vx * DT; pr.y += pr.vy * DT;
       pr.life -= DT;
       let alive = pr.life > 0 && pr.x > -50 && pr.y > -50 && pr.x < MAP_W + 50 && pr.y < MAP_H + 50;
 
       if (alive && pr.team === 'p' && !pr.noHit) {
-        const list = this.enemiesNear(pr.owner, pr.x, pr.y, pr.r);
+        // 이번 틱 이동 경로 전체(선분)로 판정 — 빠른 탄환이 몹 사이를 뚫고 지나가지 않도록
+        const half = Math.hypot(pr.x - x0, pr.y - y0) / 2;
+        const list = this.enemiesNear(pr.owner, (x0 + pr.x) / 2, (y0 + pr.y) / 2, half + pr.r)
+          .filter(u => !pr.hit.has(u.id) && segDist2(u.x, u.y, x0, y0, pr.x, pr.y) <= (pr.r + u.r) ** 2);
+        for (const u of list) u._d = d2(x0, y0, u.x, u.y);
+        list.sort((a, b) => a._d - b._d);
         for (const u of list) {
-          if (pr.hit.has(u.id)) continue;
           if (pr.explode) { this.explode(pr); alive = false; pr.exploded = true; break; }
           pr.hit.add(u.id);
           const a = Math.atan2(pr.vy, pr.vx);
@@ -1358,6 +1366,7 @@ export class Game {
       st: {
         might: Math.round(p.stats.might * 100), armor: p.stats.armor, speed: Math.round(p.stats.speed),
         crit: Math.round(p.stats.crit * 100), cd: Math.round((1 - p.stats.cdMult) * 100), ls: Math.round(p.stats.lifesteal * 100),
+        pierce: p.stats.pierce,
       },
     };
   }

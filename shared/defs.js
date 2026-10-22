@@ -114,6 +114,7 @@ export const PASSIVES = {
   haste:     { name: '가속',   max: 5, desc: '무기 쿨다운 -7%' },
   area:      { name: '확장',   max: 5, desc: '공격 범위 +10%' },
   multi:     { name: '복제',   max: 2, desc: '투사체/타격 수 +1' },
+  pierce:    { name: '관통',   max: 3, desc: '투사체가 적을 1명 더 관통 (소총·단검·유도탄)', needs: 'proj' },
   magnet:    { name: '자력',   max: 5, desc: '획득 범위 +35%' },
   precision: { name: '정밀',   max: 5, desc: '치명타 확률 +6%' },
   vampire:   { name: '흡혈',   max: 5, desc: '피해량의 2% 흡혈' },

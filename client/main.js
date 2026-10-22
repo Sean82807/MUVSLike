@@ -634,7 +634,8 @@ function updateHud(v) {
     for (const id in me.pa) lo.push(`<span class="it" title="${esc(PASSIVES[id].desc)}">${PASSIVES[id].name} ${me.pa[id]}</span>`);
     for (const id in me.re) if (me.re[id] > 0) lo.push(`<span class="it r" title="${esc(RELICS[id].desc)}">${RELICS[id].name}${me.re[id] > 1 ? ' x' + me.re[id] : ''}</span>`);
     $('loadout').innerHTML = lo.join('');
-    $('statLine').textContent = `피해 ${me.st.might}% · 방어 ${me.st.armor} · 이속 ${me.st.speed} · 치명 ${me.st.crit}% · 쿨감 ${me.st.cd}% · 흡혈 ${me.st.ls}%`;
+    $('statLine').textContent = `피해 ${me.st.might}% · 방어 ${me.st.armor} · 이속 ${me.st.speed} · 치명 ${me.st.crit}% · 쿨감 ${me.st.cd}% · 흡혈 ${me.st.ls}%`
+      + (me.st.pierce ? ` · 관통 +${me.st.pierce}` : '');
 
     // 선택지 (게임은 계속 진행됨)
     const key = me.opt ? `${me.ch}|${me.ct}|${JSON.stringify(me.opt)}` : '';
