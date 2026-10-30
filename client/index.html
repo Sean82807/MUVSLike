@@ -91,7 +91,8 @@
           <li><b>Q</b> 공격 대상 우선순위 (자동 / 몬스터 / 플레이어) · <b>Enter</b> 채팅 · <b>Tab</b> 관전 대상 변경</li>
           <li>4명은 맵의 네 귀퉁이에서 시작합니다. 중앙의 <b>최종 보스</b>에게 막타를 친 플레이어가 승리합니다.</li>
           <li>맵 곳곳의 <b>오브젝트</b>(정예 몬스터)를 막타로 사냥하면 강화 아이템(유물)을 얻습니다.</li>
-          <li>다른 플레이어를 처치해도 강화 아이템을 얻습니다. 단, 누구든 <b>사망할 때마다 모든 몬스터의 공격력이 상승</b>합니다.</li>
+          <li>다른 플레이어를 처치해도 강화 아이템을 얻습니다. 단, 플레이어가 <b>다른 플레이어에게 처치될 때마다 몬스터 분노</b>가 쌓여 90초간 모든 몬스터 공격력이 +20%씩 오릅니다.</li>
+          <li><b>현상금</b> 죽지 않고 플레이어를 2명 이상 연속 처치하면 현상금(★)이 걸립니다. 그 플레이어를 처치하면 ★ 수만큼 무작위 패시브가 강화됩니다.</li>
           <li>몬스터는 가끔 고기·자석·폭탄·보물상자를 떨어뜨립니다.</li>
           <li><b>상태이상</b> 클래스마다 고유 상태이상이 있습니다: 전사 <span style="color:#e53935">출혈</span> · 마법사 <span style="color:#ff7043">연소</span> · 소총수 <span style="color:#ffd54f">약점 노출</span> · 성기사 <span style="color:#fff59d">빛의 인장</span> · 암살자 <span style="color:#9ccc65">중독</span> · 마검사 <span style="color:#81d4fa">서리</span>. 강화 아이템으로 다른 클래스의 상태이상을 걸 수 있고, 잔혹·증폭·역병의 씨앗·연쇄 촉매로 시너지를 만들 수 있습니다.</li>
         </ul>
@@ -115,7 +116,7 @@
     <div id="top" class="box center">
       <span id="clock"></span>
       <span id="pvpState" class="tag"></span>
-      <span id="mobMult" class="tag warn" title="플레이어가 사망할 때마다 상승"></span>
+      <span id="mobMult" class="tag" title="플레이어가 다른 플레이어에게 처치될 때마다 몬스터 공격력 +20% (중첩마다 90초)"></span>
       <div id="bossBar" class="bar boss"><div id="bossFill"></div><span id="bossText"></span></div>
     </div>
     <div id="side">

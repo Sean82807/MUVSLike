@@ -147,6 +147,7 @@ export function drawWorld(ctx, W, H, v, cam, fx, now, myId, dpr = 1) {
     const info = p.info || {};
     hpBar(ctx, p.x, p.y - PLAYER_RADIUS - 12, 46, 6, p.hp / p.maxHp, p.id === myId ? '#66bb6a' : '#ef5350');
     label(ctx, `${info.name || '?'}  Lv${p.level}`, p.x, p.y - PLAYER_RADIUS - 20, 13, info.color || '#fff');
+    if (p.bounty) label(ctx, `💰 현상금 ★${p.bounty}`, p.x, p.y - PLAYER_RADIUS - 36, 13, '#ffd54f');
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
@@ -446,6 +447,7 @@ export function drawMinimap(mctx, v, viewId, cam, viewW, viewH) {
     const info = p.info || {};
     mctx.fillStyle = info.color || '#fff';
     mctx.beginPath(); mctx.arc(p.x * S, p.y * S, p.id === viewId ? 5 : 4, 0, TAU); mctx.fill();
+    if (p.bounty) { mctx.strokeStyle = '#ffd54f'; mctx.lineWidth = 2; mctx.beginPath(); mctx.arc(p.x * S, p.y * S, 8, 0, TAU); mctx.stroke(); }
     if (p.id === viewId) { mctx.strokeStyle = '#fff'; mctx.lineWidth = 2; mctx.stroke(); }
   }
 }

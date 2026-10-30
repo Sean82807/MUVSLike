@@ -228,7 +228,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 // ───────────────────────── 스냅샷 ─────────────────────────
 function parseSnap(s) {
   const P = new Map(), M = new Map(), PR = new Map();
-  for (const a of s.p) P.set(a[0], { id: a[0], x: a[1], y: a[2], hp: a[3], maxHp: a[4], cls: a[5], level: a[6], dead: a[7] & 1, flags: a[7] >> 1, face: a[8], aura: a[9], orb: a[10], orbR: a[11], orbRot: a[12] });
+  for (const a of s.p) P.set(a[0], { id: a[0], x: a[1], y: a[2], hp: a[3], maxHp: a[4], cls: a[5], level: a[6], dead: a[7] & 1, flags: a[7] >> 1, face: a[8], aura: a[9], orb: a[10], orbR: a[11], orbRot: a[12], bounty: a[13] || 0 });
   for (const a of s.m) M.set(a[0], { id: a[0], type: a[1], x: a[2], y: a[3], hp: a[4], flags: a[5] });
   for (const a of s.pr) PR.set(a[0], { id: a[0], kind: a[1], x: a[2], y: a[3], r: a[4], team: a[5], ang: a[6] });
   const O = s.o.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], hp: a[4], maxHp: a[5], alive: a[6], respawn: a[7], flags: a[8], tier: a[9] }));
@@ -274,6 +274,7 @@ function spawnFx(list, at) {
       case 'line': S.fx.push({ type, x, y, x2: f[3], y2: f[4], kind: f[5], at, dur: 0.35 }); break;
       case 'skill': S.fx.push({ type, x, y, at, dur: 0.4 }); break;
       case 'die': S.fx.push({ type, x, y, at, dur: 1.5 }); break;
+      case 'bounty': S.fx.push({ type: 'text', x, y: y - 50, at, dur: 2, text: `💰 현상금 ★${f[3]} 획득!`, size: 22, color: '#ffd54f' }); break;
     }
   }
 }
@@ -680,7 +681,9 @@ function updateHud(v) {
   const pvp = $('pvpState');
   pvp.textContent = raw.pvp ? 'PvP 활성' : `PvP 금지 ${raw.grace}s`;
   pvp.className = 'tag ' + (raw.pvp ? 'bad' : 'good');
-  $('mobMult').textContent = `몹 공격력 x${raw.mult.toFixed(2)}`;
+  const mm = $('mobMult');
+  mm.textContent = raw.rage ? `몹 분노 x${raw.mult.toFixed(1)} · ${raw.rage}중첩 ${raw.rageT}s` : '몹 분노 없음';
+  mm.className = 'tag ' + (raw.rage ? 'warn' : '');
   const B = v.b;
   if (B.seal > 0) {
     $('bossFill').style.width = '100%';
@@ -694,7 +697,7 @@ function updateHud(v) {
   const rows = raw.sb.slice().sort((a, b) => b[1] - a[1]).map(r => {
     const info = S.roster.get(r[0]) || {};
     const cls = CLASSES[info.cls] || {};
-    const status = r[6] >= 0 ? `💀${r[6] || ''}` : '';
+    const status = r[6] >= 0 ? `💀${r[6] || ''}` : r[7] ? `<span class="bounty" title="현상금: 처치하면 무작위 패시브 ${r[7]}개">💰★${r[7]}</span>` : '';
     return `<tr class="${r[6] >= 0 ? 'dead' : ''}"><td><span class="dot" style="background:${info.color}"></span>${esc(info.name || '?')}${info.isBot ? ' <span class="muted">AI</span>' : ''}</td>
       <td>${cls.icon || ''}</td><td>Lv${r[1]}</td><td title="플레이어 처치/사망">⚔${r[2]}/${r[3]}</td><td title="오브젝트 사냥">★${r[4]}</td><td>${status}</td></tr>`;
   });
@@ -729,9 +732,9 @@ function showOver(m) {
   const winner = m.results.find(r => r.id === m.winnerId);
   $('overTitle').textContent = winner ? `🏆 ${winner.name} (${CLASSES[winner.cls].name}) 승리! — ${fmtTime(m.time)}` : `보스의 승리… — ${fmtTime(m.time)}`;
   const rows = m.results.slice().sort((a, b) => (b.id === m.winnerId) - (a.id === m.winnerId) || b.level - a.level);
-  $('results').innerHTML = '<tr><th>플레이어</th><th>클래스</th><th>레벨</th><th>플레이어 처치</th><th>사망</th><th>오브젝트</th><th>몬스터</th><th>총 피해량</th></tr>'
+  $('results').innerHTML = '<tr><th>플레이어</th><th>클래스</th><th>레벨</th><th>플레이어 처치</th><th>사망</th><th>현상금 획득</th><th>오브젝트</th><th>몬스터</th><th>총 피해량</th></tr>'
     + rows.map(r => `<tr class="${r.id === m.winnerId ? 'win' : ''}"><td>${esc(r.name)}${r.isBot ? ' (AI)' : ''}</td><td>${CLASSES[r.cls].icon} ${CLASSES[r.cls].name}</td>
-      <td>${r.level}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.objKills}</td><td>${r.mobKills}</td><td>${r.dmg.toLocaleString()}</td></tr>`).join('');
+      <td>${r.level}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${r.bounties || 0}</td><td>${r.objKills}</td><td>${r.mobKills}</td><td>${r.dmg.toLocaleString()}</td></tr>`).join('');
   $('lobbyBtn').classList.toggle('hidden', !S.lobby || S.lobby.hostId !== S.cid);
   show('over');
 }

@@ -96,6 +96,7 @@ h3 { margin: 14px 0 8px; font-size: 15px; color: var(--accent); }
 #feed { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
 #feed div { background: rgba(10, 12, 18, 0.7); padding: 3px 8px; border-radius: 5px; font-size: 12px; max-width: 300px; transition: opacity .5s; }
 #feed .pvp { color: #ff8a80; } #feed .object { color: #ffe082; } #feed .warn { color: #ffab91; }
+#feed .bounty, #score .bounty { color: #ffd54f; font-weight: 700; }
 #feed .death { color: #b0bec5; } #feed .win { color: #fff176; font-weight: 700; } #feed .chat { color: #b3e5fc; }
 
 #choices { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); pointer-events: auto; text-align: center; }

@@ -20,7 +20,10 @@ export const SLOT_COLORS = ['#4fc3f7', '#ffb74d', '#9ccc65', '#f06292'];
 
 export const PLAYER_RADIUS = 18;
 export const PVP_DAMAGE_MULT = 0.6;   // 플레이어 간 피해 배율
-export const DEATH_ATK_BONUS = 0.1;   // 플레이어 1명 사망당 몹 공격력 +10%
+// 몬스터 분노: 플레이어가 다른 플레이어에게 처치될 때마다 1중첩 (중첩마다 따로 만료)
+export const PVP_RAGE = { bonus: 0.2, dur: 90 };
+// 현상금: 죽지 않고 플레이어를 연속 처치(min 이상)하면 현상금. 처치자는 ★ 수만큼 무작위 패시브 강화
+export const BOUNTY = { min: 2, max: 6 };
 export const ARMOR_K = 30;            // 받는 피해 = dmg * K / (K + armor)
 export const MAX_WEAPONS = 4;         // 고유 무기 포함
 export const BASE_MAGNET = 90;

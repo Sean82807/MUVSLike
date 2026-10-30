@@ -91,14 +91,21 @@ export class BotBrain {
     // PvP
     if (g.pvpActive() && hpF > 0.5) {
       const mine = this.power(p);
-      let prey = null, pd = Infinity;
+      let prey = null, best = -Infinity, preyBounty = 0;
       for (const q of g.players) {
         if (q === p || q.dead || q.invuln > 0) continue;
         const d = Math.hypot(q.x - p.x, q.y - p.y);
-        const range = 500 + this.aggr * 400;
-        if (d < range && this.power(q) * (1.25 - this.aggr * 0.4) < mine && d < pd) { prey = q; pd = d; }
+        // 현상금이 클수록 더 멀리서, 더 강한 상대에게도 도전 (★1당 상대 전력 20% 더 허용)
+        const bounty = g.bountyOf(q);
+        const range = 500 + this.aggr * 400 + bounty * 250;
+        // 현상금 대상이 다쳐 있으면 기회를 노려 달려듦 (하이에나)
+        const wounded = bounty && q.hp / q.stats.maxHp < 0.5 ? 0.55 : 1;
+        const caution = (1.25 - this.aggr * 0.4) / (1 + 0.2 * bounty) * wounded;
+        if (d >= range || this.power(q) * caution >= mine) continue;
+        const score = bounty * 400 - d;
+        if (score > best) { best = score; prey = q; preyBounty = bounty; }
       }
-      if (prey && Math.random() < 0.3 + this.aggr * 0.6) return { type: 'hunt', target: prey };
+      if (prey && (preyBounty || Math.random() < 0.3 + this.aggr * 0.6)) return { type: 'hunt', target: prey };
     }
 
     // 오브젝트

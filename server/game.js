@@ -1,7 +1,7 @@
 // 권위 서버 게임 시뮬레이션. 네트워크와 무관하게 step()만 호출하면 진행된다.
 import {
   TICK_RATE, MAP_W, MAP_H, CENTER, BOSS_ARENA_R, SPAWNS, SLOT_COLORS, PLAYER_RADIUS,
-  PVP_DAMAGE_MULT, DEATH_ATK_BONUS, ARMOR_K, MAX_WEAPONS, BASE_MAGNET, DEFAULT_SETTINGS,
+  PVP_DAMAGE_MULT, PVP_RAGE, BOUNTY, ARMOR_K, MAX_WEAPONS, BASE_MAGNET, DEFAULT_SETTINGS,
   CLASSES, CLASS_IDS, SKILLS, WEAPONS, WEAPON_MAX_LV, GENERIC_WEAPONS, PASSIVES, RELICS,
   MOBS, OBJECTS, OBJECT_SPOTS, OBJECT_RESPAWN, BOSS, ITEMS, ITEM_DROP_CHANCE, xpToNext,
   MOB_TYPE_IDS, OBJ_TYPE_IDS, ITEM_IDS, STATUS_BITS, PROJ_KINDS, STATUSES, SUSTAIN_RATE,
@@ -64,6 +64,7 @@ export class Game {
     this.time = 0;
     this.tick = 0;
     this.totalDeaths = 0;
+    this.rage = [];        // 몬스터 분노 중첩별 만료 시각 (오름차순)
     this.mobAtkMult = 1;
     this.players = [];
     this.mobs = [];
@@ -91,6 +92,35 @@ export class Game {
   bossSealed() { return this.time < this.settings.bossUnseal; }
   pushFeed(text, kind = 'info') { this.feed.push({ text, kind }); }
   monsterDmgMult() { return this.mobAtkMult * (1 + this.minutes * 0.035); }
+  bountyOf(p) { return p.streak >= BOUNTY.min ? Math.min(p.streak, BOUNTY.max) : 0; }
+
+  addRage() {
+    this.rage.push(this.time + PVP_RAGE.dur);
+    this.rage.sort((a, b) => a - b);
+    this.mobAtkMult = 1 + PVP_RAGE.bonus * this.rage.length;
+  }
+
+  updateRage() {
+    if (!this.rage.length || this.rage[0] > this.time) return;
+    this.rage = this.rage.filter(t => t > this.time);
+    this.mobAtkMult = 1 + PVP_RAGE.bonus * this.rage.length;
+    this.pushFeed(this.rage.length ? `몬스터 분노가 약해졌습니다 (x${this.mobAtkMult.toFixed(1)})` : '몬스터 분노가 가라앉았습니다', 'info');
+  }
+
+  // 현상금 보상: 무작위 패시브 n레벨 (모두 최대면 경험치)
+  grantRandomPassives(p, n) {
+    const hasProj = p.weapons.some(w => ['proj', 'homing', 'aoeproj'].includes(WEAPONS[w.id].kind));
+    const got = {};
+    for (let i = 0; i < n; i++) {
+      const cands = Object.keys(PASSIVES).filter(id => (p.passives[id] || 0) < PASSIVES[id].max && !(PASSIVES[id].needs === 'proj' && !hasProj));
+      if (!cands.length) { this.gainXp(p, xpToNext(p.level) * 0.5); got.xp = (got.xp || 0) + 1; continue; }
+      const id = cands[Math.floor(Math.random() * cands.length)];
+      p.passives[id] = (p.passives[id] || 0) + 1;
+      got[id] = (got[id] || 0) + 1;
+    }
+    this.recalc(p);
+    return Object.entries(got).map(([id, c]) => (id === 'xp' ? '경험치' : PASSIVES[id].name) + (c > 1 ? ` +${c}` : ''));
+  }
 
   // ───────────────────────── 생성 ─────────────────────────
   makePlayer(slot, s) {
@@ -106,7 +136,7 @@ export class Game {
       passives: {}, relics: {}, choices: [], skillT: 0,
       status: {}, invuln: 3, shield: 0, whirl: 0, whirlT: 0, critBuff: 0, kbx: 0, kby: 0,
       dead: false, respawnT: 0,
-      kills: 0, mobKills: 0, objKills: 0, deaths: 0, dmgDealt: 0, dmgBy: {}, stealHealed: 0, sustain: 0,
+      kills: 0, streak: 0, bountyClaims: 0, mobKills: 0, objKills: 0, deaths: 0, dmgDealt: 0, dmgBy: {}, stealHealed: 0, sustain: 0,
       lastPlayerHit: null, targetMode: 'auto', spawnAcc: 0, nearMobs: 0,
       stats: null, bot: null,
     };
@@ -505,23 +535,39 @@ export class Game {
     p.dead = true; p.hp = 0; p.status = {}; p.whirl = 0; p.shield = 0; p.critBuff = 0;
     p.deaths++;
     this.totalDeaths++;
-    this.mobAtkMult = 1 + DEATH_ATK_BONUS * this.totalDeaths;
     this.fx.push(['die', Math.round(p.x), Math.round(p.y), p.slot]);
 
     let killer = src && src.kind === 'player' ? src : null;
     if (!killer && p.lastPlayerHit && this.time - p.lastPlayerHit.t < 4) {
       killer = this.players.find(q => q.id === p.lastPlayerHit.id) || null;
     }
-    if (killer && killer !== p && !killer.dead) {
-      killer.kills++;
-      this.gainXp(killer, 12 * p.level);
-      killer.choices.push({ type: 'relic', options: null });
-      this.ensureOptions(killer);
-      this.pushFeed(`${killer.name} ⚔ ${p.name} — 플레이어 처치! 강화 아이템 획득`, 'pvp');
+    if (killer === p) killer = null;
+    const bounty = this.bountyOf(p);
+    p.streak = 0; // 죽으면 현상금 소멸
+
+    if (killer) {
+      if (!killer.dead) {
+        killer.kills++;
+        this.gainXp(killer, 12 * p.level);
+        killer.choices.push({ type: 'relic', options: null });
+        this.ensureOptions(killer);
+        this.pushFeed(`${killer.name} ⚔ ${p.name} — 플레이어 처치! 강화 아이템 획득`, 'pvp');
+        if (bounty) {
+          const got = this.grantRandomPassives(killer, bounty);
+          killer.bountyClaims++;
+          this.fx.push(['bounty', Math.round(killer.x), Math.round(killer.y), bounty, killer.id]);
+          this.pushFeed(`💰 ${killer.name} 님이 ${p.name}의 현상금 ★${bounty} 획득! (${got.join(', ')})`, 'bounty');
+        }
+        killer.streak++;
+        const kb = this.bountyOf(killer);
+        if (kb) this.pushFeed(`💰 ${killer.name} 님에게 현상금 ★${kb}이(가) 걸렸습니다!`, 'bounty');
+      }
+      // 플레이어에게 처치된 경우에만 몬스터 분노 (한시적)
+      this.addRage();
+      this.pushFeed(`몬스터 분노! 공격력 x${this.mobAtkMult.toFixed(1)} (${PVP_RAGE.dur}초간, ${this.rage.length}중첩)`, 'warn');
     } else {
       this.pushFeed(`${p.name} 님이 사망했습니다`, 'death');
     }
-    this.pushFeed(`몬스터 공격력 상승! (x${this.mobAtkMult.toFixed(2)})`, 'warn');
 
     if (this.settings.respawn) {
       p.respawnT = 8 + 4 * Math.min(p.deaths - 1, 5);
@@ -716,6 +762,7 @@ export class Game {
     if (this.over) return;
     this.time += DT;
     this.tick++;
+    this.updateRage();
 
     // 몹 그리드 (이전 위치 기준, 플레이어 공격 판정용)
     this.grid.clear();
@@ -1422,16 +1469,17 @@ export class Game {
         if (d.kind === 'orbit') { const o = this.orbitParams(p, w); orb = o.count; orbR = r(o.radius); orbRot = r(o.rot * 100); }
       }
       return [p.id, r(p.x), r(p.y), r(p.hp), p.stats.maxHp, CLASS_IDS.indexOf(p.cls), p.level,
-        (p.dead ? 1 : 0) | (this.statusFlags(p) << 1), r(p.face * 100), aura, orb, orbR, orbRot];
+        (p.dead ? 1 : 0) | (this.statusFlags(p) << 1), r(p.face * 100), aura, orb, orbR, orbRot, this.bountyOf(p)];
     });
     const objects = this.objects.map(o => [o.id, OBJ_TYPE_IDS.indexOf(o.type), r(o.x), r(o.y), r(o.hp), o.maxHp,
       o.alive ? 1 : 0, r(o.respawnT), this.statusFlags(o), o.tier]);
     const b = this.boss;
     const boss = [r(b.x), r(b.y), r(Math.max(0, b.hp)), b.maxHp, this.statusFlags(b), b.enraged ? 1 : 0, b.dashT > 0 ? 1 : 0,
       Math.max(0, Math.ceil(this.settings.bossUnseal - this.time))];
-    const score = this.players.map(p => [p.id, p.level, p.kills, p.deaths, p.objKills, p.mobKills, p.dead ? Math.ceil(p.respawnT) : -1]);
+    const score = this.players.map(p => [p.id, p.level, p.kills, p.deaths, p.objKills, p.mobKills, p.dead ? Math.ceil(p.respawnT) : -1, this.bountyOf(p)]);
     return {
       t: 's', time: Math.round(this.time * 1000) / 1000, mult: Math.round(this.mobAtkMult * 100) / 100,
+      rage: this.rage.length, rageT: this.rage.length ? Math.ceil(this.rage[0] - this.time) : 0,
       pvp: this.pvpActive() ? 1 : 0, grace: Math.max(0, Math.ceil(this.settings.pvpGrace - this.time)),
       p: players, o: objects, b: boss, sb: score, feed: this.feed.splice(0),
     };
@@ -1482,7 +1530,7 @@ export class Game {
   results() {
     return this.players.map(p => ({
       id: p.id, name: p.name, cls: p.cls, isBot: p.isBot, level: p.level, kills: p.kills, deaths: p.deaths,
-      objKills: p.objKills, mobKills: p.mobKills, dmg: Math.round(p.dmgDealt),
+      objKills: p.objKills, mobKills: p.mobKills, dmg: Math.round(p.dmgDealt), bounties: p.bountyClaims,
       dmgBy: Object.fromEntries(Object.entries(p.dmgBy).map(([k, v]) => [k, Math.round(v)])),
     }));
   }

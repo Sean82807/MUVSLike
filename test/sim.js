@@ -51,7 +51,7 @@ for (let i = 1; i <= games; i++) res.push(runOne(i));
 if (games > 1) {
   const wins = {};
   for (const r of res) if (r.winner) wins[r.winner] = (wins[r.winner] || 0) + 1;
-  console.log('wins by class:', wins, 'avg end minute:', (res.reduce((a, r) => a + r.time, 0) / res.length / 60).toFixed(1));
+  console.log('wins by class:', JSON.stringify(wins), 'avg end minute:', (res.reduce((a, r) => a + r.time, 0) / res.length / 60).toFixed(1));
 }
 const worst = Math.max(...res.map(r => r.tickMs));
 if (worst > 1000 / TICK_RATE) { console.error(`tick too slow: ${worst.toFixed(2)}ms`); process.exit(1); }
