@@ -5,12 +5,13 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const MELEE = new Set(['warrior', 'spellblade', 'paladin']);
 
 const PASSIVE_PREF = {
-  melee:  { pierce: 4, armor: 8, vitality: 8, might: 9, area: 8, regen: 6, haste: 6, vampire: 7, swift: 5, multi: 6, precision: 4, magnet: 3 },
-  ranged: { pierce: 10, might: 9, haste: 9, multi: 9, precision: 7, swift: 7, area: 6, vitality: 6, armor: 5, regen: 4, vampire: 5, magnet: 4 },
+  melee:  { cruelty: 6, potency: 6, pierce: 4, armor: 8, vitality: 8, might: 9, area: 8, regen: 6, haste: 6, vampire: 7, swift: 5, multi: 6, precision: 4, magnet: 3 },
+  ranged: { cruelty: 6, potency: 6, pierce: 10, might: 9, haste: 9, multi: 9, precision: 7, swift: 7, area: 6, vitality: 6, armor: 5, regen: 4, vampire: 5, magnet: 4 },
 };
 const RELIC_PREF = {
   dragonHeart: 10, phoenix: 9, berserker: 9, prismOrb: 8, titanBelt: 7, executioner: 7, aegis: 7,
-  vampFang: 7, luckyClover: 7, stormBoots: 6, manaCrystal: 5, greedCrown: 6, thornMail: 5, hunterMark: 5,
+  vampFang: 6, luckyClover: 7, stormBoots: 6, manaCrystal: 5, greedCrown: 6, thornMail: 5, hunterMark: 5,
+  serratedEdge: 6, emberRing: 6, hunterScope: 6, holySigil: 6, viperFang: 6, frostCore: 6, plagueSeed: 7, catalyst: 7,
 };
 
 export class BotBrain {

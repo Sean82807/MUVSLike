@@ -87,19 +87,19 @@ export const SKILLS = {
 // kind: arc(근접 부채꼴), proj(투사체), aoeproj(폭발 투사체), aura(주변 지속),
 //       orbit(회전), strike(번개), homing(유도), nova(파동)
 export const WEAPONS = {
-  greatsword: { name: '대검', desc: '전방 넓은 부채꼴 베기 + 넉백', sig: 'warrior', kind: 'arc', dmg: 40, cd: 1.0, range: 150, arc: 2.4, kb: 70, cntLv: [] },
-  rifle:      { name: '소총', desc: '가장 가까운 적에게 고속 탄환 (레벨업 시 관통)', sig: 'rifleman', kind: 'proj', dmg: 21, cd: 0.45, speed: 980, life: 0.8, pierce: 0, pierceLv: true, count: 1, cntLv: [5], spread: 0.1, r: 5, range: 720 },
+  greatsword: { name: '대검', desc: '전방 넓은 부채꼴 베기 + 넉백, 출혈', sig: 'warrior', kind: 'arc', dmg: 40, cd: 1.0, range: 150, arc: 2.4, kb: 70, cntLv: [], status: { bleed: { n: 1 } } },
+  rifle:      { name: '소총', desc: '가장 가까운 적에게 고속 탄환, 약점 노출 (레벨업 시 관통)', sig: 'rifleman', kind: 'proj', dmg: 21, cd: 0.45, speed: 980, life: 0.8, pierce: 0, pierceLv: true, count: 1, cntLv: [5], spread: 0.1, r: 5, range: 720, status: { expose: { n: 1 } } },
   fireball:   { name: '화염구', desc: '착탄 시 폭발, 화상+둔화', sig: 'mage', kind: 'aoeproj', dmg: 48, cd: 1.7, speed: 470, life: 1.5, explode: 125, r: 13, range: 680, cntLv: [6],
                 status: { burn: { t: 3, dps: 10 }, slow: { t: 1.5, amt: 0.4 } } },
-  runeblade:  { name: '룬검', desc: '마력 베기 + 전방 검기 발사, 둔화', sig: 'spellblade', kind: 'arc', dmg: 32, cd: 0.85, range: 135, arc: 2.0, kb: 30, wave: true, cntLv: [],
-                status: { slow: { t: 1, amt: 0.3 } } },
-  daggers:    { name: '단검', desc: '단검 여러 개 투척', sig: 'assassin', kind: 'proj', dmg: 15, cd: 0.45, speed: 820, life: 0.55, pierce: 0, count: 2, spread: 0.22, r: 5, range: 450 },
-  consecrate: { name: '신성 지대', desc: '주변 적에게 지속 피해, 적중 수만큼 회복', sig: 'paladin', kind: 'aura', dmg: 14, cd: 0.5, radius: 125, heal: 1.0 },
+  runeblade:  { name: '룬검', desc: '마력 베기 + 전방 검기 발사, 서리', sig: 'spellblade', kind: 'arc', dmg: 32, cd: 0.85, range: 135, arc: 2.0, kb: 30, wave: true, cntLv: [],
+                status: { frost: { n: 1 } } },
+  daggers:    { name: '단검', desc: '단검 여러 개 투척, 중독', sig: 'assassin', kind: 'proj', dmg: 15, cd: 0.45, speed: 820, life: 0.55, pierce: 0, count: 2, spread: 0.22, r: 5, range: 450, status: { poison: { n: 1 } } },
+  consecrate: { name: '신성 지대', desc: '주변 적에게 지속 피해 + 빛의 인장, 적중 수만큼 회복', sig: 'paladin', kind: 'aura', dmg: 14, cd: 0.5, radius: 125, heal: 1.0, status: { mark: {} } },
 
-  orbit:      { name: '회전 칼날', desc: '주위를 도는 칼날', kind: 'orbit', dmg: 16, count: 2, radius: 95, rot: 3.2, hitCd: 0.5 },
+  orbit:      { name: '회전 칼날', desc: '주위를 도는 칼날, 출혈', kind: 'orbit', dmg: 16, count: 2, radius: 95, rot: 3.2, hitCd: 0.5, status: { bleed: { n: 1 } } },
   lightning:  { name: '낙뢰', desc: '무작위 적에게 낙뢰 + 기절', kind: 'strike', dmg: 42, cd: 2.2, count: 2, range: 520, status: { stun: { t: 0.35 } } },
   missile:    { name: '유도탄', desc: '적을 추적하는 유도탄', kind: 'homing', dmg: 22, cd: 1.5, count: 2, speed: 430, life: 2.5, r: 7, range: 600 },
-  nova:       { name: '서리 파동', desc: '주변에 냉기 파동, 강한 둔화', kind: 'nova', dmg: 22, cd: 3.2, radius: 190, status: { slow: { t: 2, amt: 0.5 } } },
+  nova:       { name: '서리 파동', desc: '주변에 냉기 파동, 서리 2중첩', kind: 'nova', dmg: 22, cd: 3.2, radius: 190, status: { frost: { n: 2 } } },
 };
 export const WEAPON_MAX_LV = 6;
 export const GENERIC_WEAPONS = Object.keys(WEAPONS).filter(k => !WEAPONS[k].sig);
@@ -114,10 +114,12 @@ export const PASSIVES = {
   haste:     { name: '가속',   max: 5, desc: '무기 쿨다운 -7%' },
   area:      { name: '확장',   max: 5, desc: '공격 범위 +10%' },
   multi:     { name: '복제',   max: 2, desc: '투사체/타격 수 +1' },
-  pierce:    { name: '관통',   max: 3, desc: '투사체가 적을 1명 더 관통 (소총·단검·유도탄)', needs: 'proj' },
+  pierce:    { name: '관통',   max: 3, desc: '투사체가 적을 1명 더 관통 (화염구는 관통하며 연속 폭발)', needs: 'proj' },
+  cruelty:   { name: '잔혹',   max: 3, desc: '대상의 상태이상 1종당 피해 +5% (최대 4종)' },
+  potency:   { name: '증폭',   max: 3, desc: '상태이상 피해·효과 +25%, 지속시간 +15%' },
   magnet:    { name: '자력',   max: 5, desc: '획득 범위 +35%' },
   precision: { name: '정밀',   max: 5, desc: '치명타 확률 +6%' },
-  vampire:   { name: '흡혈',   max: 5, desc: '피해량의 2% 흡혈' },
+  vampire:   { name: '흡혈',   max: 5, desc: '피해량의 2% 흡혈 (초당 회복량 상한 있음)' },
 };
 
 // ───────────────────────── 강화 아이템(유물) ─────────────────────────
@@ -137,6 +139,16 @@ export const RELICS = {
   thornMail:    { name: '가시 갑옷',     desc: '받은 근접 피해의 35% 반사' },
   hunterMark:   { name: '사냥꾼의 표식', desc: '플레이어 대상 피해 +30%' },
   luckyClover:  { name: '네잎클로버',   desc: '치명타 +10%, 치명타 피해 +50%' },
+  // 상태이상 부여 (클래스 무관)
+  serratedEdge: { name: '톱니 칼날',     desc: '적중 시 20% 확률로 출혈', proc: { bleed: 0.2 } },
+  emberRing:    { name: '불씨 반지',     desc: '적중 시 20% 확률로 연소', proc: { burn: 0.2 } },
+  hunterScope:  { name: '정밀 조준경',   desc: '적중 시 25% 확률로 약점 노출', proc: { expose: 0.25 } },
+  holySigil:    { name: '빛의 성표',     desc: '적중 시 12% 확률로 빛의 인장', proc: { mark: 0.12 } },
+  viperFang:    { name: '독사의 이빨',   desc: '적중 시 25% 확률로 중독', proc: { poison: 0.25 } },
+  frostCore:    { name: '서리 핵',       desc: '적중 시 20% 확률로 서리', proc: { frost: 0.2 } },
+  // 상태이상 시너지
+  plagueSeed:   { name: '역병의 씨앗',   desc: '상태이상에 걸린 적을 처치하면 주변 적 3명에게 상태이상 전이' },
+  catalyst:     { name: '연쇄 촉매',     desc: '상태이상을 걸 때 중첩 +1, 상태이상 피해 +30%' },
 };
 
 // ───────────────────────── 몬스터 ─────────────────────────
@@ -171,6 +183,25 @@ export const OBJECT_RESPAWN = 110; // 초
 export const BOSS = { name: '심연의 군주', hp: 140000, dmg: 40, r: 78, speed: 70, color: '#311b92' };
 
 // ───────────────────────── 드랍 아이템 ─────────────────────────
+// ───────────────────────── 상태이상 ─────────────────────────
+// 클래스 고유 상태이상. 고유 무기/스킬이 부여하고, 유물로 다른 클래스도 부여 가능.
+export const STATUSES = {
+  bleed:  { name: '출혈',     cls: 'warrior',    color: '#e53935', max: 5, dur: 4, dps: 5,
+            desc: '중첩(최대 5) 지속 피해' },
+  burn:   { name: '연소',     cls: 'mage',       color: '#ff7043', dur: 3, dps: 10,
+            desc: '강한 지속 피해' },
+  expose: { name: '약점 노출', cls: 'rifleman',  color: '#ffd54f', max: 5, dur: 4, amp: 0.06,
+            desc: '중첩당 받는 모든 피해 +6% (최대 5)' },
+  mark:   { name: '빛의 인장', cls: 'paladin',   color: '#fff59d', dur: 3, burst: 32, radius: 110, heal: 0.012,
+            desc: '3초 후 또는 대상 사망 시 신성 폭발 + 시전자 회복' },
+  poison: { name: '중독',     cls: 'assassin',   color: '#9ccc65', max: 8, dur: 5, dps: 3.5, antiHeal: 0.4,
+            desc: '중첩(최대 8) 지속 피해, 플레이어는 회복량 -40%' },
+  frost:  { name: '서리',     cls: 'spellblade', color: '#81d4fa', max: 5, dur: 3, slowPer: 0.1, freeze: 1.2,
+            desc: '중첩당 둔화 10%, 5중첩 시 빙결' },
+};
+export const CLASS_STATUS = Object.fromEntries(Object.entries(STATUSES).map(([k, v]) => [v.cls, k]));
+export const SUSTAIN_RATE = 0.012; // 흡혈/인장 회복은 초당 최대 체력의 1.2%까지만 (버스트 여유 3%)
+
 export const ITEMS = {
   meat:   { name: '고기',     desc: '체력 30% 회복', color: '#ef5350' },
   magnet: { name: '자석',     desc: '주변 경험치 흡수', color: '#42a5f5' },
@@ -187,7 +218,8 @@ export function xpToNext(level) {
 export const MOB_TYPE_IDS = Object.keys(MOBS);
 export const OBJ_TYPE_IDS = Object.keys(OBJECTS);
 export const ITEM_IDS = ['gem', ...Object.keys(ITEMS)];
-export const STATUS_BITS = { burn: 1, slow: 2, stun: 4, freeze: 8, invuln: 16, shield: 32, whirl: 64, crit: 128 };
+export const STATUS_BITS = { burn: 1, slow: 2, stun: 4, freeze: 8, invuln: 16, shield: 32, whirl: 64, crit: 128,
+  bleed: 256, poison: 512, expose: 1024, mark: 2048, frost: 4096 };
 
 // 투사체 외형 종류
 export const PROJ_KINDS = ['bullet', 'dagger', 'fireball', 'wave', 'missile', 'mbolt', 'arrow', 'rock', 'fire', 'grenade', 'boss'];

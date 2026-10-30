@@ -4,7 +4,7 @@ import {
   PVP_DAMAGE_MULT, DEATH_ATK_BONUS, ARMOR_K, MAX_WEAPONS, BASE_MAGNET, DEFAULT_SETTINGS,
   CLASSES, CLASS_IDS, SKILLS, WEAPONS, WEAPON_MAX_LV, GENERIC_WEAPONS, PASSIVES, RELICS,
   MOBS, OBJECTS, OBJECT_SPOTS, OBJECT_RESPAWN, BOSS, ITEMS, ITEM_DROP_CHANCE, xpToNext,
-  MOB_TYPE_IDS, OBJ_TYPE_IDS, ITEM_IDS, STATUS_BITS, PROJ_KINDS,
+  MOB_TYPE_IDS, OBJ_TYPE_IDS, ITEM_IDS, STATUS_BITS, PROJ_KINDS, STATUSES, SUSTAIN_RATE,
 } from '../shared/defs.js';
 import { BotBrain } from './ai.js';
 
@@ -106,7 +106,7 @@ export class Game {
       passives: {}, relics: {}, choices: [], skillT: 0,
       status: {}, invuln: 3, shield: 0, whirl: 0, whirlT: 0, critBuff: 0, kbx: 0, kby: 0,
       dead: false, respawnT: 0,
-      kills: 0, mobKills: 0, objKills: 0, deaths: 0, dmgDealt: 0, dmgBy: {},
+      kills: 0, mobKills: 0, objKills: 0, deaths: 0, dmgDealt: 0, dmgBy: {}, stealHealed: 0, sustain: 0,
       lastPlayerHit: null, targetMode: 'auto', spawnAcc: 0, nearMobs: 0,
       stats: null, bot: null,
     };
@@ -168,6 +168,11 @@ export class Game {
   recalc(p) {
     const c = CLASSES[p.cls], pv = p.passives, n = id => p.relics[id] || 0, lv = id => pv[id] || 0;
     const prevMax = p.stats ? p.stats.maxHp : 0;
+    const procs = {}; // 유물로 얻은 상태이상 부여 확률
+    for (const id in p.relics) {
+      const r = RELICS[id];
+      if (r && r.proc && p.relics[id] > 0) for (const k in r.proc) procs[k] = Math.min(0.6, (procs[k] || 0) + r.proc[k] * p.relics[id]);
+    }
     p.stats = {
       might: (1 + 0.12 * lv('might')) * (1 + 0.25 * n('dragonHeart')),
       armor: c.armor + 4 * lv('armor') + 12 * n('aegis'),
@@ -187,6 +192,13 @@ export class Game {
       pvpDmg: 1 + 0.3 * n('hunterMark'),
       skillCd: Math.pow(0.65, n('manaCrystal')),
       thorns: 0.35 * n('thornMail'),
+      cruelty: 0.05 * lv('cruelty'),
+      potency: 1 + 0.25 * lv('potency'),
+      statusDur: 1 + 0.15 * lv('potency'),
+      dotMult: 1 + 0.3 * n('catalyst'),
+      extraStacks: n('catalyst'),
+      plague: n('plagueSeed'),
+      procs,
     };
     if (prevMax && p.stats.maxHp > prevMax && !p.dead) p.hp += p.stats.maxHp - prevMax;
     p.hp = Math.min(p.hp, p.stats.maxHp);
@@ -202,7 +214,7 @@ export class Game {
       dmg: d.dmg * (1 + 0.22 * (lv - 1)) * s.might,
       cd: (d.cd || 1) * (1 - 0.04 * (lv - 1)) * s.cdMult,
       count: (d.count || 1) + lvBonus + s.amount,
-      pierce: (d.pierce || 0) + (d.pierceLv ? Math.floor(lv / 3) : 0) + (d.kind === 'proj' || d.kind === 'homing' ? s.pierce : 0),
+      pierce: (d.pierce || 0) + (d.pierceLv ? Math.floor(lv / 3) : 0) + (d.kind === 'proj' || d.kind === 'homing' || d.kind === 'aoeproj' ? s.pierce : 0),
       range: (d.range || 0) * (d.kind === 'arc' ? areaMult : 1),
       radius: (d.radius || 0) * areaMult * (d.kind === 'aura' || d.kind === 'nova' ? (1 + 0.1 * s.amount) : 1),
       explode: (d.explode || 0) * areaMult,
@@ -259,6 +271,12 @@ export class Game {
         if (Math.random() < c) { dmg *= sp.stats.critMult; crit = true; }
       }
     }
+    const ex = t.status.expose;
+    if (ex) dmg *= 1 + ex.amp * ex.n; // 약점 노출: 모든 출처의 피해 증가
+    if (sp && sp.stats.cruelty) {
+      const c = Object.keys(t.status).length;
+      if (c) dmg *= 1 + sp.stats.cruelty * Math.min(4, c);
+    }
     if (t.kind === 'player') {
       if (t.invuln > 0 || t.shield > 0) return 0;
       if (o.melee && src && src.kind !== 'player' && t.stats.thorns > 0) {
@@ -276,9 +294,10 @@ export class Game {
       sp.dmgDealt += dmg;
       const k = o.wid || 'etc';
       sp.dmgBy[k] = (sp.dmgBy[k] || 0) + dmg;
-      if (sp.stats.lifesteal > 0 && !o.noSteal) this.heal(sp, dmg * sp.stats.lifesteal, true);
+      if (sp.stats.lifesteal > 0 && !o.noSteal) sp.stealHealed += this.sustainHeal(sp, dmg * sp.stats.lifesteal);
     }
     if (o.status) this.applyStatus(t, o.status, sp);
+    if (sp && !o.dot && !o.noProc && t.hp > 0) this.rollProcs(t, sp);
     if (o.kb && t.kind !== 'object' && t.kind !== 'boss') {
       const k = t.kind === 'player' ? o.kb.f * 0.4 : o.kb.f;
       t.kbx += o.kb.x * k * 6; t.kby += o.kb.y * k * 6;
@@ -291,21 +310,58 @@ export class Game {
   }
 
   heal(p, amt, quiet = false) {
-    if (p.dead || amt <= 0) return;
+    if (p.dead || amt <= 0) return 0;
+    if (p.status.poison) amt *= 1 - STATUSES.poison.antiHeal;
     const before = p.hp;
     p.hp = Math.min(p.stats.maxHp, p.hp + amt);
     const got = p.hp - before;
     if (!quiet && got >= 2) this.fx.push(['h', Math.round(p.x), Math.round(p.y - p.r), Math.round(got), p.id]);
+    return got;
+  }
+
+  // 흡혈·인장 회복은 초당 최대 체력의 일정 비율까지만 (광역 공격으로 무한 회복 방지)
+  sustainHeal(p, amt) {
+    if (amt <= 0 || p.sustain <= 0) return 0;
+    const got = this.heal(p, Math.min(amt, p.sustain), true);
+    p.sustain -= got;
+    return got;
+  }
+
+  rollProcs(t, sp) {
+    const pr = sp.stats.procs;
+    for (const k in pr) {
+      if (Math.random() < pr[k]) this.applyStatus(t, { [k]: k === 'burn' ? { t: 3, dps: 8 } : { n: 1 } }, sp);
+    }
   }
 
   applyStatus(t, st, sp) {
     const res = t.kind === 'boss' ? 0.3 : t.kind === 'object' ? 0.5 : t.kind === 'player' ? 0.6 : 1;
+    const pot = sp ? sp.stats.potency : 1, durM = sp ? sp.stats.statusDur : 1;
+    const power = sp ? sp.stats.might * pot * sp.stats.dotMult : this.monsterDmgMult();
     for (const k in st) {
       if ((k === 'stun' || k === 'freeze') && t.kind === 'boss') continue;
-      const s = st[k], dur = s.t * res, cur = t.status[k];
+      const s = st[k], def = STATUSES[k], cur = t.status[k];
+      const dur = (s.t || (def ? def.dur : 1)) * res * durM;
       if (k === 'burn') {
-        const dps = s.dps * (sp ? sp.stats.might : this.monsterDmgMult());
+        const dps = s.dps * power;
         t.status.burn = { t: Math.max(cur ? cur.t : 0, dur), dps: Math.max(cur ? cur.dps : 0, dps), src: sp ? sp.id : 0, acc: cur ? cur.acc : 0 };
+      } else if (k === 'mark') {
+        // 인장은 터질 때까지 갱신하지 않음 → 지속 공격 시 주기적으로 폭발
+        if (cur || !sp) continue;
+        t.status.mark = { t: def.dur, power, src: sp.id };
+      } else if (def) {
+        // 중첩형: 출혈 / 약점 노출 / 중독 / 서리
+        const c = cur || { t: 0, n: 0, power: 0, amp: 0, src: 0, acc: 0 };
+        c.n = Math.min(def.max, c.n + (s.n || 1) + (sp ? sp.stats.extraStacks : 0));
+        c.t = Math.max(c.t, dur);
+        if (def.dps && power >= c.power) { c.power = power; c.src = sp ? sp.id : 0; }
+        if (def.amp) c.amp = Math.max(c.amp, def.amp * pot);
+        t.status[k] = c;
+        if (k === 'frost' && c.n >= def.max) {
+          delete t.status.frost;
+          if (t.kind !== 'boss') t.status.freeze = { t: Math.max(t.status.freeze ? t.status.freeze.t : 0, def.freeze * res) };
+          this.fx.push(['nova', Math.round(t.x), Math.round(t.y), Math.round(t.r * 2.2), 2]);
+        }
       } else if (k === 'slow') {
         const amt = t.kind === 'boss' ? s.amt * 0.5 : s.amt;
         t.status.slow = { t: Math.max(cur ? cur.t : 0, dur), amt: Math.max(cur ? cur.amt : 0, amt) };
@@ -320,20 +376,57 @@ export class Game {
     for (const k in st) {
       const s = st[k];
       s.t -= DT;
-      if (k === 'burn') {
+      if (k === 'burn' || k === 'bleed' || k === 'poison') {
         s.acc += DT;
         if (s.acc >= 0.5) {
           s.acc -= 0.5;
           const src = s.src ? this.players.find(p => p.id === s.src) : null;
-          this.hurt(u, s.dps * 0.5, src || null, { noCrit: true, noSteal: true, wid: 'burn' });
+          const dps = k === 'burn' ? s.dps : STATUSES[k].dps * s.n * s.power;
+          this.hurt(u, dps * 0.5, src || null, { noCrit: true, noSteal: true, dot: true, wid: k });
         }
       }
-      if (s.t <= 0) delete st[k];
+      if (s.t <= 0 && st[k] === s) {
+        delete st[k];
+        if (k === 'mark') this.markBurst(u, s);
+      }
+    }
+  }
+
+  // 빛의 인장 폭발: 주변 적에게 신성 피해 + 시전자 회복 (연쇄 가능)
+  markBurst(u, s) {
+    const src = this.players.find(p => p.id === s.src);
+    if (!src) return;
+    const def = STATUSES.mark, r = def.radius * src.stats.area;
+    this.fx.push(['boom', Math.round(u.x), Math.round(u.y), Math.round(r), 5]);
+    for (const v of this.enemiesNear(src, u.x, u.y, r)) {
+      this.hurt(v, def.burst * s.power, src, { noCrit: true, noSteal: true, noProc: true, wid: 'mark' });
+    }
+    src.stealHealed += this.sustainHeal(src, src.stats.maxHp * def.heal);
+  }
+
+  // 역병의 씨앗: 처치한 적의 상태이상을 주변 적에게 옮김
+  spreadStatus(t, killer) {
+    const keys = Object.keys(t.status).filter(k => STATUSES[k] && k !== 'mark');
+    if (!keys.length) return;
+    const near = this.enemiesNear(killer, t.x, t.y, 170).filter(v => v !== t && v.hp > 0);
+    for (const v of near) v._d = d2(t.x, t.y, v.x, v.y);
+    near.sort((a, b) => a._d - b._d);
+    for (const v of near.slice(0, 2 + killer.stats.plague)) {
+      for (const k of keys) {
+        const s = t.status[k], cur = v.status[k];
+        if (!cur || (cur.n || 0) < (s.n || 0) || cur.t < s.t) v.status[k] = { ...s, acc: 0, t: Math.max(s.t, 2) };
+      }
+      this.fx.push(['line', Math.round(t.x), Math.round(t.y), Math.round(v.x), Math.round(v.y), 2]);
     }
   }
 
   isDisabled(u) { return !!(u.status.stun || u.status.freeze); }
-  slowMult(u) { return u.status.slow ? 1 - u.status.slow.amt : 1; }
+  slowMult(u) {
+    let a = u.status.slow ? u.status.slow.amt : 0;
+    const f = u.status.frost;
+    if (f) a = Math.max(a, f.n * STATUSES.frost.slowPer * (u.kind === 'boss' ? 0.5 : 1));
+    return 1 - a;
+  }
 
   statusFlags(u) {
     let f = 0;
@@ -342,6 +435,11 @@ export class Game {
     if (s.slow) f |= STATUS_BITS.slow;
     if (s.stun) f |= STATUS_BITS.stun;
     if (s.freeze) f |= STATUS_BITS.freeze;
+    if (s.bleed) f |= STATUS_BITS.bleed;
+    if (s.poison) f |= STATUS_BITS.poison;
+    if (s.expose) f |= STATUS_BITS.expose;
+    if (s.mark) f |= STATUS_BITS.mark;
+    if (s.frost) f |= STATUS_BITS.frost;
     if (u.kind === 'player') {
       if (u.invuln > 0) f |= STATUS_BITS.invuln;
       if (u.shield > 0) f |= STATUS_BITS.shield;
@@ -354,6 +452,11 @@ export class Game {
   // ───────────────────────── 처치 ─────────────────────────
   kill(t, src) {
     const sp = src && src.kind === 'player' ? src : null;
+    if (t.kind === 'mob') t.dead = true;
+    // 사망 시 인장 폭발 / 상태이상 전이
+    if (t.status.mark) { const m = t.status.mark; delete t.status.mark; this.markBurst(t, m); }
+    const credit = sp || (t.lastHitBy ? this.players.find(p => p.id === t.lastHitBy) : null);
+    if (credit && credit.stats.plague) this.spreadStatus(t, credit);
     if (t.kind === 'mob') {
       t.dead = true;
       if (sp) sp.mobKills++;
@@ -476,7 +579,7 @@ export class Game {
     if (p.weapons.length < MAX_WEAPONS) {
       for (const g of GENERIC_WEAPONS) if (!p.weapons.some(w => w.id === g)) pool.push({ k: 'w', id: g, lv: 1, wt: 1.6 });
     }
-    const hasProj = p.weapons.some(w => WEAPONS[w.id].kind === 'proj' || WEAPONS[w.id].kind === 'homing');
+    const hasProj = p.weapons.some(w => ['proj', 'homing', 'aoeproj'].includes(WEAPONS[w.id].kind));
     for (const id in PASSIVES) {
       if (PASSIVES[id].needs === 'proj' && !hasProj) continue; // 투사체 무기가 없으면 관통은 제시하지 않음
       const cur = p.passives[id] || 0;
@@ -562,7 +665,7 @@ export class Game {
         this.projectiles.push({
           id: this.id(), team: 'p', owner: p, x: p.x, y: p.y, vx: ux * sp, vy: uy * sp, r: 9,
           dmg: 120 * s.might, pierce: 0, life: d / sp, hit: new Set(), kind: 'grenade',
-          explode: 155 * s.area, noHit: true, kb: 140, wid: 'skill',
+          explode: 155 * s.area, noHit: true, kb: 140, wid: 'skill', status: { expose: { n: 2 } },
         });
         break;
       }
@@ -577,7 +680,7 @@ export class Game {
       case 'blink': {
         const d = Math.min(dist, 370);
         const ex = clamp(p.x + ux * d, p.r, MAP_W - p.r), ey = clamp(p.y + uy * d, p.r, MAP_H - p.r);
-        this.pathStrike(p, p.x, p.y, ex, ey, 55, 125 * s.might, { slow: { t: 1.5, amt: 0.5 } });
+        this.pathStrike(p, p.x, p.y, ex, ey, 55, 125 * s.might, { frost: { n: 2 } });
         this.fx.push(['line', Math.round(p.x), Math.round(p.y), Math.round(ex), Math.round(ey), 0]);
         p.x = ex; p.y = ey; p.invuln = Math.max(p.invuln, 0.25);
         break;
@@ -585,7 +688,7 @@ export class Game {
       case 'shadowstep': {
         const d = Math.min(dist, 280);
         const ex = clamp(p.x + ux * d, p.r, MAP_W - p.r), ey = clamp(p.y + uy * d, p.r, MAP_H - p.r);
-        this.pathStrike(p, p.x, p.y, ex, ey, 40, 70 * s.might, null);
+        this.pathStrike(p, p.x, p.y, ex, ey, 40, 70 * s.might, { poison: { n: 3 } });
         this.fx.push(['line', Math.round(p.x), Math.round(p.y), Math.round(ex), Math.round(ey), 1]);
         p.x = ex; p.y = ey; p.invuln = Math.max(p.invuln, 0.35); p.critBuff = 3;
         break;
@@ -661,8 +764,9 @@ export class Game {
     this.pushOut(p, this.boss.hp > 0 ? this.boss : null);
     for (const o of this.objects) if (o.alive) this.pushOut(p, o);
 
-    // 재생
+    // 재생 / 흡혈 예산 충전
     if (p.hp < p.stats.maxHp) this.heal(p, p.stats.regen * DT, true);
+    p.sustain = Math.min(p.stats.maxHp * 0.03, p.sustain + p.stats.maxHp * SUSTAIN_RATE * DT);
 
     // 회오리
     if (p.whirl > 0) {
@@ -673,7 +777,7 @@ export class Game {
         const r = 165 * p.stats.area;
         for (const u of this.enemiesNear(p, p.x, p.y, r)) {
           const a = Math.atan2(u.y - p.y, u.x - p.x);
-          this.hurt(u, 24 * p.stats.might, p, { kb: { x: Math.cos(a), y: Math.sin(a), f: 18 }, wid: 'skill' });
+          this.hurt(u, 24 * p.stats.might, p, { kb: { x: Math.cos(a), y: Math.sin(a), f: 18 }, wid: 'skill', status: { bleed: { n: 1 } } });
         }
         this.fx.push(['nova', Math.round(p.x), Math.round(p.y), Math.round(r), 1]);
       }
@@ -753,7 +857,7 @@ export class Game {
       const a = base + (i - (n - 1) / 2) * spr;
       this.projectiles.push({
         id: this.id(), team: 'p', owner: p, x: p.x, y: p.y, vx: Math.cos(a) * ws.d.speed, vy: Math.sin(a) * ws.d.speed,
-        r: ws.d.r, dmg: ws.dmg, pierce: ws.pierce, life: ws.d.life, hit: new Set(), kind, wid: ws.id,
+        r: ws.d.r, dmg: ws.dmg, pierce: ws.pierce, life: ws.d.life, hit: new Set(), kind, wid: ws.id, status: ws.d.status,
       });
     }
     p.face = base;
@@ -768,7 +872,7 @@ export class Game {
       const a = Math.atan2(t.y - p.y, t.x - p.x) + (i >= ts.length ? (i - ts.length + 1) * 0.25 : 0);
       this.projectiles.push({
         id: this.id(), team: 'p', owner: p, x: p.x, y: p.y, vx: Math.cos(a) * ws.d.speed, vy: Math.sin(a) * ws.d.speed,
-        r: ws.d.r, dmg: ws.dmg, pierce: 0, life: ws.d.life, hit: new Set(), kind: 'fireball',
+        r: ws.d.r, dmg: ws.dmg, pierce: ws.pierce, life: ws.d.life, hit: new Set(), kind: 'fireball',
         explode: ws.explode, status: ws.d.status, wid: ws.id,
       });
       if (i === 0) p.face = a;
@@ -779,7 +883,7 @@ export class Game {
   fireAura(p, ws) {
     const list = this.enemiesNear(p, p.x, p.y, ws.radius);
     let hits = 0;
-    for (const u of list) { this.hurt(u, ws.dmg, p, { wid: ws.id }); hits++; }
+    for (const u of list) { this.hurt(u, ws.dmg, p, { wid: ws.id, status: ws.d.status }); hits++; }
     if (hits && ws.d.heal) this.heal(p, Math.min(hits, 6) * ws.d.heal * (1 + 0.15 * (ws.lv - 1)), true);
     return true;
   }
@@ -833,7 +937,7 @@ export class Game {
         const next = w.hits.get(u.id) || 0;
         if (this.time < next) continue;
         w.hits.set(u.id, this.time + ws.d.hitCd);
-        this.hurt(u, ws.dmg, p, { kb: { x: Math.cos(a), y: Math.sin(a), f: 10 }, wid: ws.id });
+        this.hurt(u, ws.dmg, p, { kb: { x: Math.cos(a), y: Math.sin(a), f: 10 }, wid: ws.id, status: ws.d.status });
       }
     }
     if (this.tick % 150 === 0) for (const [k, v] of w.hits) if (v < this.time) w.hits.delete(k);
@@ -884,7 +988,11 @@ export class Game {
         for (const u of list) u._d = d2(x0, y0, u.x, u.y);
         list.sort((a, b) => a._d - b._d);
         for (const u of list) {
-          if (pr.explode) { this.explode(pr); alive = false; pr.exploded = true; break; }
+          if (pr.explode) { // 관통 화염구는 적중할 때마다 폭발하며 계속 날아감
+            this.explode(pr); pr.exploded = true; pr.hit.add(u.id);
+            if (pr.pierce-- <= 0) alive = false;
+            break;
+          }
           pr.hit.add(u.id);
           const a = Math.atan2(pr.vy, pr.vx);
           this.hurt(u, pr.dmg, pr.owner, { status: pr.status, kb: { x: Math.cos(a), y: Math.sin(a), f: 8 }, wid: pr.wid });

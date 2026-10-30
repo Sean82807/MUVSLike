@@ -1,6 +1,6 @@
 import {
   MAP_W, MAP_H, CLASSES, CLASS_IDS, SKILLS, WEAPONS, PASSIVES, RELICS, ITEMS, ITEM_IDS, OBJECTS, OBJ_TYPE_IDS,
-  BOSS, STATUS_BITS, PLAYER_RADIUS, SLOT_COLORS, WEAPON_MAX_LV,
+  BOSS, STATUS_BITS, PLAYER_RADIUS, SLOT_COLORS, WEAPON_MAX_LV, STATUSES, CLASS_STATUS,
 } from '../shared/defs.js';
 import { drawWorld, drawMinimap, fmtTime } from './render.js';
 
@@ -198,7 +198,8 @@ function renderLobby() {
     card.innerHTML = `<div class="ic">${c.icon}</div><div class="nm" style="color:${c.color}">${c.name}</div>
       <div class="st">체력 ${c.hp} · 방어 ${c.armor} · 속도 ${c.speed}</div>
       <div class="ds">${c.desc}</div>
-      <div class="st">무기: ${WEAPONS[c.weapon].name} · 스킬: ${SKILLS[c.skill].name}</div>`;
+      <div class="st">무기: ${WEAPONS[c.weapon].name} · 스킬: ${SKILLS[c.skill].name}</div>
+      <div class="st"><span style="color:${STATUSES[CLASS_STATUS[id]].color}">● ${STATUSES[CLASS_STATUS[id]].name}</span> ${STATUSES[CLASS_STATUS[id]].desc}</div>`;
     card.title = SKILLS[c.skill].desc;
     card.onclick = () => { if (mySlot && L.state === 'lobby') send({ t: 'cls', cls: id }); };
     clsEl.appendChild(card);

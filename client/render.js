@@ -1,7 +1,7 @@
 // 캔버스 렌더링 (월드 + 미니맵). 상태는 main.js가 보간해서 넘겨준다.
 import {
   MAP_W, MAP_H, CENTER, BOSS_ARENA_R, SPAWNS, SLOT_COLORS, CLASSES, CLASS_IDS, MOBS, MOB_TYPE_IDS,
-  OBJECTS, OBJ_TYPE_IDS, ITEMS, ITEM_IDS, STATUS_BITS, PROJ_KINDS, BOSS, OBJECT_SPOTS, PLAYER_RADIUS,
+  OBJECTS, OBJ_TYPE_IDS, ITEMS, ITEM_IDS, STATUS_BITS, PROJ_KINDS, BOSS, OBJECT_SPOTS, PLAYER_RADIUS, STATUSES,
 } from '../shared/defs.js';
 
 const TAU = Math.PI * 2;
@@ -227,10 +227,27 @@ function drawObjectFace(ctx, type, x, y, r, now) {
   }
 }
 
+const CLASS_STATUS_KEYS = Object.keys(STATUSES);
 function statusRing(ctx, x, y, r, f, now) {
   if (!f) return;
-  if (f & STATUS_BITS.burn) { ctx.beginPath(); ctx.arc(x, y, r + 3, 0, TAU); ctx.strokeStyle = 'rgba(255,112,67,0.9)'; ctx.lineWidth = 2; ctx.stroke(); }
-  if (f & STATUS_BITS.slow) { ctx.beginPath(); ctx.arc(x, y, r + 6, 0, TAU); ctx.strokeStyle = 'rgba(79,195,247,0.8)'; ctx.lineWidth = 2; ctx.stroke(); }
+  // 클래스 상태이상: 몸 둘레를 상태 수만큼 나눈 회전하는 색 띠
+  const on = CLASS_STATUS_KEYS.filter(k => f & STATUS_BITS[k]);
+  if (on.length) {
+    const seg = TAU / on.length, base = now * 2;
+    ctx.lineWidth = 3;
+    on.forEach((k, i) => {
+      ctx.beginPath(); ctx.arc(x, y, r + 4, base + i * seg, base + (i + 1) * seg - (on.length > 1 ? 0.18 : 0));
+      ctx.strokeStyle = STATUSES[k].color; ctx.stroke();
+    });
+  }
+  if ((f & STATUS_BITS.slow) && !(f & STATUS_BITS.frost)) { ctx.beginPath(); ctx.arc(x, y, r + 7, 0, TAU); ctx.strokeStyle = 'rgba(79,195,247,0.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+  if (f & STATUS_BITS.mark) { // 빛의 인장: 머리 위 회전하는 금색 마름모
+    const s = 5 + Math.sin(now * 8) * 1.2, my = y - r - 17;
+    ctx.save(); ctx.translate(x, my); ctx.rotate(now * 3);
+    ctx.fillStyle = '#fff59d'; ctx.strokeStyle = '#f9a825'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
   if (f & (STATUS_BITS.stun | STATUS_BITS.freeze)) {
     ctx.fillStyle = '#ffee58';
     for (let i = 0; i < 3; i++) {
@@ -335,7 +352,7 @@ function drawFx(ctx, fx, now) {
         break;
       }
       case 'boom': {
-        const col = ['255,138,101', '174,213,129', '255,213,79', '255,255,255', '255,82,82'][e.kind] || '255,255,255';
+        const col = ['255,138,101', '174,213,129', '255,213,79', '255,255,255', '255,82,82', '255,245,157'][e.kind] || '255,255,255';
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.4 + 0.6 * t), 0, TAU);
         ctx.fillStyle = `rgba(${col},${0.35 * k})`; ctx.fill();
         ctx.lineWidth = 3; ctx.strokeStyle = `rgba(${col},${0.8 * k})`; ctx.stroke();
@@ -343,7 +360,9 @@ function drawFx(ctx, fx, now) {
       }
       case 'nova': {
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.3 + 0.7 * t), 0, TAU);
-        ctx.lineWidth = 6 * k + 1; ctx.strokeStyle = e.kind === 1 ? `rgba(255,82,82,${k})` : `rgba(129,212,250,${k})`; ctx.stroke();
+        ctx.lineWidth = 6 * k + 1;
+        ctx.strokeStyle = e.kind === 1 ? `rgba(255,82,82,${k})` : e.kind === 2 ? `rgba(225,245,254,${k})` : `rgba(129,212,250,${k})`;
+        ctx.stroke();
         break;
       }
       case 'bolt': {
@@ -356,7 +375,8 @@ function drawFx(ctx, fx, now) {
         break;
       }
       case 'line': {
-        ctx.strokeStyle = e.kind === 1 ? `rgba(120,144,156,${k})` : `rgba(77,208,225,${k})`; ctx.lineWidth = 14 * k + 2; ctx.lineCap = 'round';
+        ctx.strokeStyle = e.kind === 1 ? `rgba(120,144,156,${k})` : e.kind === 2 ? `rgba(156,204,101,${k})` : `rgba(77,208,225,${k})`;
+        ctx.lineWidth = (e.kind === 2 ? 4 : 14) * k + 2; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x2, e.y2); ctx.stroke();
         break;
       }
