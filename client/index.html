@@ -6,6 +6,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>MUVSLike — 4인 뱀서라이크</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&display=swap">
   <link rel="stylesheet" href="/client/style.css">
 </head>
 <body>
@@ -103,15 +106,15 @@
   <!-- 인게임 HUD -->
   <div id="hud" class="hidden">
     <div id="me" class="box">
-      <div class="row"><span id="meIcon" class="cls-icon"></span><b id="meName"></b><span id="meLevel" class="tag"></span></div>
-      <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
-      <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
-      <div class="row small">
-        <span id="skillBox" class="skill"><span id="skillName"></span><span id="skillCd"></span></span>
-        <span id="targetMode" class="tag" title="Q로 변경"></span>
+      <div id="mePortrait"><img id="meIcon" alt=""><span id="meLevel"></span></div>
+      <div id="meMain">
+        <div class="row"><b id="meName"></b><span id="targetMode" class="tag" title="Q로 변경"></span></div>
+        <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
+        <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
+        <div id="loadout" class="small"></div>
+        <div id="statLine" class="small muted"></div>
       </div>
-      <div id="loadout" class="small"></div>
-      <div id="statLine" class="small muted"></div>
+      <div id="skillBox" class="skill" title=""><span class="key">SPACE</span><span id="skillName"></span><span id="skillCd"></span></div>
     </div>
     <div id="top" class="box center">
       <span id="clock"></span>

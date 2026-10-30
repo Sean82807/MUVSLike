@@ -2,7 +2,7 @@ import {
   MAP_W, MAP_H, CLASSES, CLASS_IDS, SKILLS, WEAPONS, PASSIVES, RELICS, ITEMS, ITEM_IDS, OBJECTS, OBJ_TYPE_IDS,
   BOSS, STATUS_BITS, PLAYER_RADIUS, SLOT_COLORS, WEAPON_MAX_LV, STATUSES, CLASS_STATUS,
 } from '../shared/defs.js';
-import { drawWorld, drawMinimap, fmtTime } from './render.js';
+import { drawWorld, drawMinimap, fmtTime, classPortrait } from './render.js';
 
 const $ = id => document.getElementById(id);
 const INTERP = 0.11;     // 보간 지연(초)
@@ -176,7 +176,7 @@ function renderLobby() {
       sel.onchange = () => send({ t: 'botcls', slot: s.i, cls: sel.value });
       div.appendChild(sel);
     } else {
-      div.insertAdjacentHTML('beforeend', `<span>${cls.icon} ${cls.name}</span>`);
+      div.insertAdjacentHTML('beforeend', `<span class="slot-cls"><img class="mini" src="${classPortrait(s.cls, 48)}" alt="">${cls.name}</span>`);
     }
     if (s.type === 'bot' && L.state === 'lobby' && s.cid !== S.cid) {
       const b = document.createElement('button');
@@ -195,7 +195,7 @@ function renderLobby() {
     const c = CLASSES[id];
     const card = document.createElement('div');
     card.className = 'cls-card' + (mySlot && mySlot.cls === id ? ' sel' : '');
-    card.innerHTML = `<div class="ic">${c.icon}</div><div class="nm" style="color:${c.color}">${c.name}</div>
+    card.innerHTML = `<img class="ic" src="${classPortrait(id, 96)}" alt=""><div class="nm">${c.name}</div>
       <div class="st">체력 ${c.hp} · 방어 ${c.armor} · 속도 ${c.speed}</div>
       <div class="ds">${c.desc}</div>
       <div class="st">무기: ${WEAPONS[c.weapon].name} · 스킬: ${SKILLS[c.skill].name}</div>
@@ -611,18 +611,21 @@ function updateHud(v) {
     const info = S.roster.get(me.id) || {};
     const myP = v.p.find(p => p.id === me.id);
     const cls = CLASSES[info.cls] || CLASSES[CLASS_IDS[myP ? myP.cls : 0]];
-    $('meIcon').textContent = cls.icon;
-    $('meIcon').style.background = info.color || '#fff';
+    const clsId = info.cls || CLASS_IDS[myP ? myP.cls : 0];
+    const portrait = classPortrait(clsId, 96);
+    if ($('meIcon').getAttribute('src') !== portrait) $('meIcon').src = portrait;
+    $('mePortrait').style.setProperty('--ring', info.color || '#c8aa6e');
     $('meName').textContent = `${info.name || ''} · ${cls.name}`;
-    $('meLevel').textContent = `Lv ${me.level}`;
+    $('meLevel').textContent = me.level;
     $('hpFill').style.width = `${Math.max(0, me.hp / me.maxHp * 100)}%`;
     $('hpText').textContent = `${Math.max(0, me.hp)} / ${me.maxHp}`;
     $('xpFill').style.width = `${me.xp / me.xpNext * 100}%`;
     $('xpText').textContent = `${me.xp} / ${me.xpNext}`;
     const sk = SKILLS[cls.skill];
-    $('skillName').textContent = `[Space] ${sk.name} `;
-    $('skillCd').textContent = me.sk > 0 ? `${me.sk.toFixed(1)}s` : '준비';
+    $('skillName').textContent = sk.name;
+    $('skillCd').textContent = me.sk > 0 ? Math.ceil(me.sk) : '';
     $('skillBox').classList.toggle('cd', me.sk > 0);
+    $('skillBox').style.setProperty('--cd', me.skm ? Math.min(1, me.sk / me.skm) : 0);
     $('skillBox').title = sk.desc;
     $('skillBtnName').textContent = sk.name;
     $('skillBtnCd').textContent = me.sk > 0 ? `${Math.ceil(me.sk)}s` : '';
@@ -630,7 +633,7 @@ function updateHud(v) {
     $('skillBtn').classList.toggle('hidden', me.dead || me.bot);
     $('tmBtn').textContent = TARGET_LABEL[me.tm];
     $('tmBtn').classList.remove('hidden');
-    $('targetMode').textContent = TARGET_LABEL[me.tm] + ' [Q]';
+    $('targetMode').textContent = TARGET_LABEL[me.tm] + ' · Q';
     const lo = [];
     for (const [id, lv] of me.w) lo.push(`<span class="it w" title="${esc(WEAPONS[id].desc)}">${WEAPONS[id].name} ${lv}</span>`);
     for (const id in me.pa) lo.push(`<span class="it" title="${esc(PASSIVES[id].desc)}">${PASSIVES[id].name} ${me.pa[id]}</span>`);
@@ -698,8 +701,8 @@ function updateHud(v) {
     const info = S.roster.get(r[0]) || {};
     const cls = CLASSES[info.cls] || {};
     const status = r[6] >= 0 ? `💀${r[6] || ''}` : r[7] ? `<span class="bounty" title="현상금: 처치하면 무작위 패시브 ${r[7]}개">💰★${r[7]}</span>` : '';
-    return `<tr class="${r[6] >= 0 ? 'dead' : ''}"><td><span class="dot" style="background:${info.color}"></span>${esc(info.name || '?')}${info.isBot ? ' <span class="muted">AI</span>' : ''}</td>
-      <td>${cls.icon || ''}</td><td>Lv${r[1]}</td><td title="플레이어 처치/사망">⚔${r[2]}/${r[3]}</td><td title="오브젝트 사냥">★${r[4]}</td><td>${status}</td></tr>`;
+    return `<tr class="${r[6] >= 0 ? 'dead' : ''}"><td><span class="dot" style="background:${info.color}"></span>${esc(info.name || '?')}${info.isBot && !/^AI /.test(info.name || '') ? ' <span class="muted">AI</span>' : ''}</td>
+      <td>${info.cls ? `<img class="mini" src="${classPortrait(info.cls, 48)}" alt="">` : ''}</td><td>Lv${r[1]}</td><td title="플레이어 처치/사망">⚔${r[2]}/${r[3]}</td><td title="오브젝트 사냥">★${r[4]}</td><td>${status}</td></tr>`;
   });
   $('score').innerHTML = rows.join('');
   renderFeed();
